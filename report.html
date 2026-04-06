@@ -79,9 +79,9 @@ details[open] summary{margin-bottom:8px}
 
 <nav><div class="container">
   <a href="#architectures">Architectures</a>
-  <a href="#finding1">Source Burden</a>
-  <a href="#finding2">Payer Impact</a>
-  <a href="#finding3">System Load</a>
+  <a href="#finding1">Total Work</a>
+  <a href="#finding2">Who Does It</a>
+  <a href="#finding3">Payer Impact</a>
   <a href="#tradeoffs">Tradeoffs</a>
   <a href="#methodology">Methodology</a>
   <a href="#explorer" style="background:#eff6ff;color:var(--broker);font-weight:600">Explorer</a>
@@ -100,42 +100,43 @@ details[open] summary{margin-bottom:8px}
   </div>
 </div></section>
 
-<!-- ═══ FINDING 1: SOURCE BURDEN ═══ -->
+<!-- ═══ FINDING 1: TOTAL WORK ═══ -->
 <section id="finding1"><div class="container">
-  <h2>Key Finding: Source Burden</h2>
-  <p>The most operationally significant difference. In Direct models, every provider EHR must manage subscriptions from apps, payers, and care-team members. In Broker and Encrypted, sources have zero subscription management.</p>
-  <div class="metric-row" id="src-metrics"></div>
-  <div class="card"><div id="chart-src"></div></div>
-  <div class="callout warn"><strong>Feasibility question:</strong> Many U.S. provider EHRs do not support FHIR Subscriptions today. Direct requires them to manage <span id="src-p95-direct"></span> subscriptions (p95 source). Direct+Group reduces this to <span id="src-p95-group"></span> by collapsing payer per-patient subs into Group subs. Broker requires zero.</div>
+  <h2>Total Work: Direct Models Do Less</h2>
+  <p>Direct models generate ~34% fewer total messages than Broker. This is not zero-sum — Broker's relay chain (source&rarr;network&rarr;peer networks&rarr;clients) creates intermediate hops that are genuinely eliminated when clients subscribe directly at sources. The end delivery count (notifications received by apps, payers, providers) is the same across all models.</p>
+  <div class="card"><div id="chart-messages"></div></div>
+  <div class="callout info"><strong>Why the difference?</strong> Every clinical event in Broker traverses source&rarr;network&rarr;peer network&rarr;client, generating <strong id="broker-total"></strong> total messages. In Direct, the source sends straight to subscribers — <strong id="direct-total"></strong> total messages. The <strong id="msg-savings"></strong> saved messages are relay hops that carried duplicated data through network infrastructure. Both Direct variants are identical here — Group subscriptions don't change notification delivery, only subscription management.</div>
 </div></section>
 
-<!-- ═══ FINDING 2: PAYER IMPACT ═══ -->
+<!-- ═══ FINDING 2: WHO DOES THE WORK ═══ -->
 <section id="finding2"><div class="container">
-  <h2>Key Finding: Payer Impact</h2>
-  <p>Payers drive the majority of subscription state in Direct models. With 90% population coverage and ~1.28 payers per patient, payer subscriptions dominate.</p>
+  <h2>Who Does the Work: Sources vs Networks</h2>
+  <p>The total work reduction comes with a shift in <em>who</em> bears the load. Broker concentrates work at networks (purpose-built infrastructure). Direct distributes it to sources (provider EHRs that may lack subscription capabilities today).</p>
+  <div class="metric-row" id="src-metrics"></div>
+  <div class="card"><div id="chart-src"></div></div>
+  <div class="callout warn"><strong>Adoption question:</strong> Direct requires a p95 source to manage <span id="src-p95-direct"></span> subscriptions and send <span id="src-direct-msgs"></span> msgs/day. Direct+Group reduces subscriptions to <span id="src-p95-group"></span> (by collapsing payer per-patient subs into Group subs) but source outbound messages stay the same. Broker requires <strong>zero</strong> subscription management at sources — they send <span id="src-broker-msgs"></span> msgs/day to their network and nothing else.</div>
+</div></section>
+
+<!-- ═══ FINDING 3: PAYER IMPACT ═══ -->
+<section id="finding3"><div class="container">
+  <h2>Payers: The Biggest Winners and Losers</h2>
+  <p>Payers drive the majority of subscription state in Direct. With 90% coverage and ~1.28 payers per patient, payer subscriptions account for <strong>62%</strong> of Direct's source subscription burden. This is where the architectural choice matters most.</p>
   <div class="metric-row" id="payer-metrics"></div>
   <div class="g2">
     <div class="card"><h3 style="margin-top:0">Direct: Source Sub Breakdown</h3><div id="chart-breakdown-b"></div></div>
     <div class="card"><h3 style="margin-top:0">Direct+Group: Source Sub Breakdown</h3><div id="chart-breakdown-bp"></div></div>
   </div>
-  <div class="callout bad"><strong>Ghost subscription risk (Direct only):</strong> When a payer member changes plans, subscriptions must be deactivated at every source. At 5% failure rate, <strong id="ghost-count"></strong> ghost subscriptions accumulate, generating <strong id="ghost-notifs"></strong> wasted notifications/year — clinical data sent to payers who no longer cover the patient.</div>
-  <div class="callout good"><strong>Direct+Group mitigates this:</strong> Payer subscriptions are long-lived Group subs. Member churn becomes $member-add/$member-remove on existing Groups, not subscription CRUD. Failed member removals are lighter and easier to audit than orphaned subscriptions.</div>
-</div></section>
-
-<!-- ═══ FINDING 3: SYSTEM LOAD ═══ -->
-<section id="finding3"><div class="container">
-  <h2>Key Finding: System-Wide Load</h2>
-  <p>Total message volume favors Direct models, but the load shifts from networks to sources. Both Direct variants have identical data-plane volumes — the Group optimization only affects subscription state, not notification delivery.</p>
-  <div class="card"><div id="chart-messages"></div></div>
-  <div class="callout info"><strong>The tradeoff:</strong> Broker generates <strong id="broker-total"></strong> total messages (relay overhead), but sources send only <strong id="broker-src-msgs"></strong> msgs/day (p95). Direct generates <strong id="direct-total"></strong> total messages (no relay), but sources send <strong id="direct-src-msgs"></strong> msgs/day (p95) and manage <strong id="direct-subs"></strong> subscriptions.</div>
+  <div class="callout bad"><strong>Ghost subscription risk (Direct only):</strong> When a member changes plans, subscriptions must be deactivated at every source the patient visited. At 5% failure rate, <strong id="ghost-count"></strong> ghost subscriptions accumulate, generating <strong id="ghost-notifs"></strong> wasted notifications/year — clinical data sent to payers who no longer cover the patient.</div>
+  <div class="callout good"><strong>Direct+Group changes the game for payers:</strong> Payer subs collapse from <strong>959M</strong> per-patient subscriptions to <strong>~180K</strong> long-lived Group subs. Member churn becomes Group membership operations, not subscription CRUD. The total work payers do is comparable to Broker, while preserving Direct's lower total message volume.</div>
 </div></section>
 
 <!-- ═══ TRADEOFF TABLE ═══ -->
 <section id="tradeoffs"><div class="container">
   <h2>Tradeoff Summary</h2>
+  <p>No architecture dominates all dimensions. Direct models reduce total system work but shift burden to sources. Direct+Group reclaims most of the payer efficiency of Broker while keeping Direct's message savings. Encrypted adds privacy at the cost of the highest total work.</p>
   <div id="tradeoff-table"></div>
   <details><summary>Scenario sensitivity</summary>
-    <p>These conclusions are stable across scenarios (mature adoption, high fragmentation, cross-network mix, high payer churn). The relative ordering does not change. Direct+Group consistently falls between Broker and Direct on source burden while matching Direct on message volume. See the <a href="#explorer">Explorer</a> to test specific parameter combinations.</p>
+    <p>These conclusions are stable across scenarios (mature adoption, high fragmentation, cross-network mix, high payer churn). The relative ordering does not change. See the <a href="#explorer">Explorer</a> to test specific parameter combinations.</p>
   </details>
 </div></section>
 
@@ -207,8 +208,7 @@ function ff(n){return Math.round(n).toLocaleString()}
 {const el=document.getElementById('src-metrics');
  [{c:MC.A,n:0,l:'Broker subs/source'},{c:MC.B,n:B.B.src_p95Subs,l:'Direct p95 subs/source'},{c:MC.Bp,n:B.Bp.src_p95Subs,l:'Direct+Group p95 subs/source'},{c:MC.C,n:0,l:'Encrypted subs/source'}].forEach(d=>
    el.innerHTML+=`<div class="metric-box"><div class="num" style="color:${d.c}">${ff(d.n)}</div><div class="lbl">${d.l}</div></div>`);
- document.getElementById('src-p95-direct').innerHTML=`<strong>${ff(B.B.src_p95Subs)}</strong>`;
- document.getElementById('src-p95-group').innerHTML=`<strong>${ff(B.Bp.src_p95Subs)}</strong>`}
+ }
 
 // ── Source burden chart ──
 {const w=900,h=200,mg={top:10,right:40,bottom:25,left:120};
@@ -232,8 +232,7 @@ function ff(n){return Math.round(n).toLocaleString()}
 {const el=document.getElementById('payer-metrics');
  [{c:MC.A,n:B.A.payer_totalSubs,l:'Broker — payer subs'},{c:MC.B,n:B.B.payer_totalSubs,l:'Direct — payer subs'},{c:MC.Bp,n:B.Bp.payer_totalSubs,l:'Direct+Group — payer subs'},{c:MC.B,n:B.B.payer_churn,l:'Direct — annual churn ops'}].forEach(d=>
    el.innerHTML+=`<div class="metric-box"><div class="num" style="color:${d.c}">${fmt(d.n)}</div><div class="lbl">${d.l}</div></div>`);
- document.getElementById('ghost-count').textContent=fmt(B.B.ghostSubs);
- document.getElementById('ghost-notifs').textContent=fmt(B.B.payer_ghostNotifs)}
+ }
 
 // ── Donut helper ──
 function donut(sel,data,total,label){
@@ -253,11 +252,14 @@ function donut(sel,data,total,label){
     row.append('rect').attr('width',12).attr('height',12).attr('rx',2).attr('fill',d.c);
     row.append('text').attr('x',16).attr('y',11).attr('font-size','.78em').text(`${d.l}: ${fmt(d.v)}`)});}
 
+// Entity colors — consistent everywhere
+const EC={apps:'#60a5fa',payers:'#f87171',providers:'#34d399'};
+
 donut('#chart-breakdown-b',
-  [{l:'Apps',v:B.B.directSourceSubs_apps,c:'#60a5fa'},{l:'Payers',v:B.B.directSourceSubs_payers,c:'#f87171'},{l:'Providers',v:B.B.directSourceSubs_providers,c:'#34d399'}],
+  [{l:'Apps',v:B.B.directSourceSubs_apps,c:EC.apps},{l:'Payers',v:B.B.directSourceSubs_payers,c:EC.payers},{l:'Providers',v:B.B.directSourceSubs_providers,c:EC.providers}],
   B.B.directSourceSubs,'source subs');
 donut('#chart-breakdown-bp',
-  [{l:'Apps',v:B.Bp.directSourceSubs_apps,c:'#60a5fa'},{l:'Payers',v:B.Bp.directSourceSubs_payers,c:'#fb923c'},{l:'Providers',v:B.Bp.directSourceSubs_providers,c:'#34d399'}],
+  [{l:'Apps',v:B.Bp.directSourceSubs_apps,c:EC.apps},{l:'Payers',v:B.Bp.directSourceSubs_payers,c:EC.payers},{l:'Providers',v:B.Bp.directSourceSubs_providers,c:EC.providers}],
   B.Bp.directSourceSubs,'source subs');
 
 // ── Messages chart ──
@@ -280,10 +282,14 @@ donut('#chart-breakdown-bp',
 
 // Fill callout values
 document.getElementById('broker-total').textContent=fmt(B.A.totalMessages);
-document.getElementById('broker-src-msgs').textContent=ff(B.A.src_p95MsgsDay);
 document.getElementById('direct-total').textContent=fmt(B.B.totalMessages);
-document.getElementById('direct-src-msgs').textContent=ff(B.B.src_p95MsgsDay);
-document.getElementById('direct-subs').textContent=fmt(B.B.directSourceSubs);
+document.getElementById('msg-savings').textContent=fmt(B.A.totalMessages-B.B.totalMessages);
+document.getElementById('src-p95-direct').innerHTML='<strong>'+ff(B.B.src_p95Subs)+'</strong>';
+document.getElementById('src-p95-group').innerHTML='<strong>'+ff(B.Bp.src_p95Subs)+'</strong>';
+document.getElementById('src-direct-msgs').innerHTML='<strong>'+ff(B.B.src_p95MsgsDay)+'</strong>';
+document.getElementById('src-broker-msgs').innerHTML='<strong>'+ff(B.A.src_p95MsgsDay)+'</strong>';
+document.getElementById('ghost-count').textContent=fmt(B.B.ghostSubs);
+document.getElementById('ghost-notifs').textContent=fmt(B.B.payer_ghostNotifs);
 
 // ── Tradeoff table ──
 {const dims=[
