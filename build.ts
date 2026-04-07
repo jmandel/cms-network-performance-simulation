@@ -2,9 +2,10 @@
  * Build script: produces dist/ with index.html, d3.min.js, sim.js, app.js
  *
  *  bun run build.ts          # uses cached sweep data
- *  bun run build.ts --fresh  # regenerates sweep data (~50 sims)
+ *  bun run build.ts --fresh  # forces regeneration of scenario bundles
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { computeSweepInputHash, SWEEP_ARTIFACT_KIND } from "./sweep_meta";
 
 mkdirSync("dist", { recursive: true });
 
@@ -32,14 +33,36 @@ const d3Js = readFileSync("node_modules/d3/dist/d3.min.js", "utf8");
 writeFileSync("dist/d3.min.js", d3Js);
 console.log(`  dist/d3.min.js: ${(d3Js.length / 1024).toFixed(0)} KB`);
 
-// 4. Sweep data
+// 4. Scenario bundle data
 let sweepJson: string;
-if (existsSync("sweep_data.json") && !process.argv.includes("--fresh")) {
-  console.log("Using cached sweep_data.json (pass --fresh to regenerate)");
-  sweepJson = readFileSync("sweep_data.json", "utf8");
-} else {
-  console.log("Generating sweep data (~50 simulations)...");
+const freshRequested = process.argv.includes("--fresh");
+const expectedHash = computeSweepInputHash();
+let canUseCache = false;
+
+if (existsSync("sweep_data.json") && !freshRequested) {
+  try {
+    const cached = JSON.parse(readFileSync("sweep_data.json", "utf8"));
+    canUseCache =
+      cached?.meta?.kind === SWEEP_ARTIFACT_KIND &&
+      cached?.meta?.inputHash === expectedHash;
+    if (canUseCache) {
+      console.log("Using cached sweep_data.json (inputs unchanged)");
+      sweepJson = JSON.stringify(cached);
+    } else {
+      console.log("Cached sweep_data.json is stale; regenerating");
+    }
+  } catch {
+    console.log("Cached sweep_data.json is unreadable; regenerating");
+  }
+}
+
+if (!canUseCache) {
+  console.log("Generating scenario bundle data...");
   const proc = Bun.spawnSync(["bun", "generate_sweep.ts"]);
+  if (proc.exitCode !== 0) {
+    console.error("Scenario bundle generation failed");
+    process.exit(proc.exitCode ?? 1);
+  }
   sweepJson = proc.stdout.toString();
   writeFileSync("sweep_data.json", sweepJson);
 }

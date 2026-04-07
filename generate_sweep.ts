@@ -4,60 +4,22 @@ import {
   runAll,
   PROTOCOL_LABELS,
   type SimulationConfig,
-  type AllResults,
-  type ProtocolName,
 } from "./fhir_network_sim";
-
-function extract(r: AllResults) {
-  const out: Record<string, any> = {};
-  for (const m of ["A", "B", "Bp", "C"] as const) {
-    const p = r.protocols[m];
-    out[m] = {
-      dataPlaneMessages: p.derived.dataPlaneMessages,
-      controlPlaneMessages: p.derived.controlPlaneMessages,
-      totalMessages: p.derived.totalAnnualMessages,
-      dataPlaneBytes: p.annual.dataPlaneBytes,
-      controlPlaneBytes: p.annual.controlPlaneBytes,
-      directSourceSubs: p.state.directSourceSubscriptions,
-      directSourceSubs_apps: p.state.directSourceSubscriptions_apps,
-      directSourceSubs_payers: p.state.directSourceSubscriptions_payers,
-      directSourceSubs_providers: p.state.directSourceSubscriptions_providers,
-      ghostSubs: p.state.ghostSubscriptions,
-      appToNetworkSubs: p.state.appToNetworkSubscriptions,
-      payerToNetworkSubs: p.state.payerToNetworkSubscriptions,
-      peerInterest: p.state.peerInterestCopies,
-      keysAtSources: p.state.keyCopiesAtSources,
-      src_meanSubs: p.stakeholders.sources.meanSubsPerSource,
-      src_p95Subs: p.stakeholders.sources.p95SubsPerSource,
-      src_meanMsgsDay: p.stakeholders.sources.meanMsgsPerSourcePerDay,
-      src_p95MsgsDay: p.stakeholders.sources.p95MsgsPerSourcePerDay,
-      src_outbound: p.stakeholders.sources.totalOutboundMessages,
-      src_auth: p.stakeholders.sources.totalAuthChecks,
-      src_subsManaged: p.stakeholders.sources.totalSubscriptionsManaged,
-      net_relay: p.stakeholders.networks.totalRelayMessages,
-      net_fanout: p.stakeholders.networks.totalFanOutToClients,
-      net_routingState: p.stakeholders.networks.totalRoutingState,
-      net_peerInterest: p.stakeholders.networks.peerInterestCopies,
-      app_totalSubs: p.stakeholders.apps.totalSubscriptions,
-      app_notifs: p.stakeholders.apps.totalNotificationsReceived,
-      app_subsPerPt: p.stakeholders.apps.meanSubsPerEnrolledPatient,
-      payer_totalSubs: p.stakeholders.payers.totalSubscriptions,
-      payer_notifs: p.stakeholders.payers.totalNotificationsReceived,
-      payer_churn: p.stakeholders.payers.annualChurnSubscriptions,
-      payer_ghost: p.stakeholders.payers.ghostSubscriptions,
-      payer_ghostNotifs: p.stakeholders.payers.ghostNotificationsWasted,
-      meanDailyMessages: p.derived.meanDailyMessages,
-      p95DailyMessages: p.derived.p95DailyMessages,
-    };
-  }
-  return out;
-}
-
-function runWith(base: SimulationConfig, overrides: Partial<SimulationConfig>): AllResults {
-  const cfg = deepMerge(base, overrides);
-  const world = buildWorld(cfg);
-  return runAll(world);
-}
+import {
+  extractFromAllResults,
+  type ExtractedProtocol,
+  type ExtractedProtocolBands,
+  type NumericBand,
+  type ScenarioBundle,
+  type SweepData,
+} from "./src/extract";
+import {
+  SCENARIO_BUNDLES,
+  SCENARIO_SAMPLE_PATIENTS,
+  SCENARIO_SEEDS,
+  SWEEP_ARTIFACT_KIND,
+  computeSweepInputHash,
+} from "./sweep_meta";
 
 function deepMerge(target: any, source: any): any {
   const out = { ...target };
@@ -71,94 +33,170 @@ function deepMerge(target: any, source: any): any {
   return out;
 }
 
-const base = createDefaultConfig();
-// Use fewer patients for sweep points (relative comparisons, not absolute precision)
-const sweepBase = { ...base, population: { ...base.population, samplePatients: 30_000 } };
-const data: any = { scenarios: {}, sweeps: {} };
+function quantile(values: number[], q: number): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * q;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  const t = idx - lo;
+  return sorted[lo] * (1 - t) + sorted[hi] * t;
+}
 
-// Scenarios
-const scenarios: [string, Partial<SimulationConfig>][] = [
-  ["baseline", {}],
-  ["mature-adoption", { population: { appEnrollmentRate: 0.38, meanExtraAppsIfEnrolled: 0.40 } } as any],
-  ["high-fragmentation", {
-    population: {
-      cohorts: base.population.cohorts.map(c => ({
-        ...c,
-        fragmentationAlpha: c.fragmentationAlpha + 1.0,
-        fragmentationBeta: Math.max(1.5, c.fragmentationBeta - 0.6),
-        meanBaselineRelationships: c.meanBaselineRelationships * 1.15,
-      }))
-    }
-  } as any],
-  ["cross-network-mix", {
-    networks: {
-      sameNetworkAppProbability: 0.15,
-      multiAppSameNetworkProbability: 0.55,
-      newRelationshipExistingNetworkProbability: 0.38,
-      homeProviderNetworkProbability: 0.45,
-    }
-  } as any],
-  ["high-payer-churn", {
-    payers: { monthlyMemberChurnRate: 0.05 },
-    modelB: { deactivationFailureRate: 0.10 },
-  } as any],
-];
-
-for (const [name, overrides] of scenarios) {
-  const r = runWith(base, overrides);
-  data.scenarios[name] = {
-    world: r.world,
-    protocols: extract(r),
+function summarize(values: number[]): NumericBand {
+  if (!values.length) {
+    return { p10: 0, p50: 0, p90: 0, mean: 0, min: 0, max: 0 };
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = values.reduce((s, x) => s + x, 0) / values.length;
+  return {
+    p10: quantile(sorted, 0.10),
+    p50: quantile(sorted, 0.50),
+    p90: quantile(sorted, 0.90),
+    mean,
+    min: sorted[0],
+    max: sorted[sorted.length - 1],
   };
 }
 
-// Sweeps
-// 1. App enrollment rate
-data.sweeps.appEnrollment = [];
-for (const rate of [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60]) {
-  const r = runWith(sweepBase, { population: { appEnrollmentRate: rate } } as any);
-  data.sweeps.appEnrollment.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
+function summarizeProtocols(runs: Array<Record<string, ExtractedProtocol>>): {
+  protocols: Record<string, ExtractedProtocol>;
+  protocolBands: Record<string, ExtractedProtocolBands>;
+} {
+  const models = ["A", "B", "Bp", "C"] as const;
+  const protocols: Record<string, ExtractedProtocol> = {};
+  const protocolBands: Record<string, ExtractedProtocolBands> = {};
+
+  for (const model of models) {
+    const sample = runs[0][model];
+    const point: any = {};
+    const bands: any = {};
+    for (const key of Object.keys(sample) as Array<keyof ExtractedProtocol>) {
+      const summary = summarize(runs.map((run) => run[model][key]));
+      point[key] = summary.p50;
+      bands[key] = summary;
+    }
+    protocols[model] = point;
+    protocolBands[model] = bands;
+  }
+
+  return { protocols, protocolBands };
 }
 
-// 2. Payer monthly churn
-data.sweeps.payerChurn = [];
-for (const rate of [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.07, 0.10]) {
-  const r = runWith(sweepBase, { payers: { monthlyMemberChurnRate: rate } } as any);
-  data.sweeps.payerChurn.push({ param: rate, label: `${(rate * 100).toFixed(1)}%/mo`, ...extract(r) });
+function summarizeWorlds(worlds: any[]): { world: any; worldBands: Record<string, NumericBand> } {
+  const sample = worlds[0];
+  const world: any = {};
+  const worldBands: Record<string, NumericBand> = {};
+
+  for (const [key, value] of Object.entries(sample)) {
+    if (typeof value === "number") {
+      const summary = summarize(worlds.map((w) => w[key]));
+      world[key] = summary.p50;
+      worldBands[key] = summary;
+    } else {
+      // Arrays/labels are deterministic for the current world construction.
+      world[key] = value;
+    }
+  }
+
+  return { world, worldBands };
 }
 
-// 3. Deactivation failure rate
-data.sweeps.deactivationFailure = [];
-for (const rate of [0.0, 0.01, 0.02, 0.05, 0.10, 0.15, 0.20, 0.30]) {
-  const r = runWith(sweepBase, { modelB: { deactivationFailureRate: rate } } as any);
-  data.sweeps.deactivationFailure.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
+function winnersForMetric(
+  protocols: Record<string, ExtractedProtocol>,
+  metric: keyof ExtractedProtocol
+): Array<"A" | "B" | "Bp" | "C"> {
+  const models = ["A", "B", "Bp", "C"] as const;
+  const values = models.map((m) => protocols[m][metric]);
+  const best = Math.min(...values);
+  return models.filter((m) => Math.abs(protocols[m][metric] - best) < 1e-9);
 }
 
-// 4. Mean relationships (via fragmentation tuning)
-data.sweeps.relationships = [];
-for (const mult of [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0]) {
-  const cohorts = base.population.cohorts.map(c => ({
-    ...c,
-    meanBaselineRelationships: c.meanBaselineRelationships * mult,
-  }));
-  const r = runWith(sweepBase, { population: { cohorts } } as any);
-  const meanRels = r.world.meanRelationshipsPerPatient;
-  data.sweeps.relationships.push({ param: mult, label: `${meanRels.toFixed(1)} rels`, meanRels, ...extract(r) });
+function materializeScenarioConfig(base: SimulationConfig, scenarioId: string, seed: number): SimulationConfig {
+  const scenario = SCENARIO_BUNDLES.find((s) => s.id === scenarioId);
+  if (!scenario) throw new Error(`Unknown scenario ${scenarioId}`);
+
+  let cfg = deepMerge(base, scenario.overrides);
+  cfg = deepMerge(cfg, {
+    seed,
+    population: {
+      samplePatients: SCENARIO_SAMPLE_PATIENTS,
+    },
+  });
+
+  if (scenarioId === "high-fragmentation" || scenarioId === "combined-stress") {
+    cfg.population.cohorts = base.population.cohorts.map((c) => ({
+      ...c,
+      fragmentationAlpha: c.fragmentationAlpha + 1.0,
+      fragmentationBeta: Math.max(1.5, c.fragmentationBeta - 0.6),
+      meanBaselineRelationships: c.meanBaselineRelationships * 1.15,
+    }));
+  }
+
+  return cfg;
 }
 
-// 5. Number of payers
-data.sweeps.payerCount = [];
-for (const count of [5, 10, 15, 20, 30, 50]) {
-  const r = runWith(sweepBase, { payers: { totalPayers: count } } as any);
-  data.sweeps.payerCount.push({ param: count, label: `${count}`, ...extract(r) });
+function runScenarioBundle(base: SimulationConfig, scenarioId: string): ScenarioBundle {
+  const def = SCENARIO_BUNDLES.find((s) => s.id === scenarioId);
+  if (!def) throw new Error(`Unknown scenario bundle ${scenarioId}`);
+
+  const results = SCENARIO_SEEDS.map((seed) => {
+    const cfg = materializeScenarioConfig(base, scenarioId, seed);
+    const allResults = runAll(buildWorld(cfg));
+    return {
+      world: allResults.world,
+      protocols: extractFromAllResults(allResults),
+    };
+  });
+
+  const worlds = results.map((r) => r.world);
+  const protocols = results.map((r) => r.protocols);
+  const worldSummary = summarizeWorlds(worlds);
+  const protocolSummary = summarizeProtocols(protocols);
+
+  return {
+    id: def.id,
+    label: def.label,
+    description: def.description,
+    runs: SCENARIO_SEEDS.length,
+    seeds: [...SCENARIO_SEEDS],
+    world: worldSummary.world,
+    worldBands: worldSummary.worldBands,
+    protocols: protocolSummary.protocols as any,
+    protocolBands: protocolSummary.protocolBands as any,
+    winners: {
+      totalMessages: winnersForMetric(protocolSummary.protocols, "totalMessages"),
+      srcP95Subs: winnersForMetric(protocolSummary.protocols, "src_p95Subs"),
+      payerTotalSubs: winnersForMetric(protocolSummary.protocols, "payer_totalSubs"),
+      payerChurn: winnersForMetric(protocolSummary.protocols, "payer_churn"),
+    },
+  };
 }
 
-// 6. Payer enrollment rate
-data.sweeps.payerEnrollment = [];
-for (const rate of [0.3, 0.5, 0.7, 0.9, 0.95]) {
-  const r = runWith(sweepBase, { payers: { enrollmentRate: rate } } as any);
-  data.sweeps.payerEnrollment.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
-}
+const base = createDefaultConfig();
+const scenarioBundles = SCENARIO_BUNDLES.map((scenario) => runScenarioBundle(base, scenario.id));
 
-data.labels = PROTOCOL_LABELS;
+const data: SweepData = {
+  meta: {
+    kind: SWEEP_ARTIFACT_KIND,
+    generatedAt: new Date().toISOString(),
+    inputHash: computeSweepInputHash(),
+    samplePatients: SCENARIO_SAMPLE_PATIENTS,
+    seeds: [...SCENARIO_SEEDS],
+    bundleCount: scenarioBundles.length,
+  },
+  scenarios: Object.fromEntries(
+    scenarioBundles.map((bundle) => [
+      bundle.id,
+      {
+        world: bundle.world,
+        protocols: bundle.protocols,
+      },
+    ])
+  ),
+  scenarioBundles,
+  labels: PROTOCOL_LABELS,
+};
+
 console.log(JSON.stringify(data));

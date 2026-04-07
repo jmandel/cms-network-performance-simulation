@@ -298,6 +298,7 @@ interface ProtocolResult {
     networkToNetworkMessages: number;
     networkToConsumerMessages: number;
     controlPlaneMessages: number;
+    controlPlaneTransportMessages: number;
     dataPlaneBytes: number;
     controlPlaneBytes: number;
     sourceAuthChecks: number;
@@ -433,19 +434,27 @@ function createDefaultConfig(): SimulationConfig {
   return {
     seed: 42,
     population: {
-      // U.S. population clock, Apr 6 2026
-      usPopulation: 342_415_247,
+      // Census Population Clock lists the U.S. at 342,620,143 on July 1, 2026.
+      // Source: U.S. Census Bureau, Population Clock, accessed 2026-04-06.
+      usPopulation: 342_620_143,
       samplePatients: 120_000,
       utilizationSigma: 1.0,
-      // Deliberately below current portal/app usage to reflect an MVP/near-term
-      // subscription program rather than the upper bound of all record access.
-      appEnrollmentRate: 0.20,
-      meanExtraAppsIfEnrolled: 0.22,
+      // Closest current national proxy for a cross-provider patient app is ONC's
+      // 2024 "portal organizing app" measure: 7% of individuals used one.
+      // Broader online-record access is much higher (65% accessed records; 57% of
+      // accessors used an app), but those measures are less specific to this model.
+      // Source: ASTP/ONC Data Brief 77, "Individuals’ Access and Use of Patient
+      // Portals and Smartphone Health Apps, 2024" (published July 2025).
+      appEnrollmentRate: 0.07,
+      // Synthetic: no good national estimate found for simultaneous use of multiple
+      // cross-provider patient apps, so keep this conservative.
+      meanExtraAppsIfEnrolled: 0.10,
       maxAppsPerPatient: 4,
       annualAppChurnRate: 0.12,
       cohorts: [
         {
           name: "child",
+          // Age shares align closely with current Census national age mix.
           share: 0.215,
           meanOutpatientEpisodes: 2.5,
           meanEdEpisodes: 0.25,
@@ -489,6 +498,8 @@ function createDefaultConfig(): SimulationConfig {
       ],
     },
     networks: {
+      // 11 designated QHINs were listed on the TEFCA RCE site in April 2026.
+      // Source: Sequoia Project RCE "Designated QHINs" / homepage, accessed 2026-04-06.
       count: 11,
       zipfExponent: 0.78,
       rankArchetypes: [
@@ -511,7 +522,11 @@ function createDefaultConfig(): SimulationConfig {
       providerCapableNetworkFraction: 1.0,
     },
     sources: {
-      totalOrganizations: 12_000,
+      // The TEFCA RCE homepage reported 14,214 organizations live on TEFCA on
+      // April 21, 2026. This includes QHINs, Participants, and Subparticipants,
+      // so it is a rough TEFCA-scale proxy rather than a pure provider-org count.
+      // Source: Sequoia Project RCE homepage, accessed 2026-04-06.
+      totalOrganizations: 14_214,
       orgSizeSigma: 1.05,
       maxRelationshipsPerPatient: 40,
       sourceSelectionStickiness: 1.35,
@@ -521,14 +536,30 @@ function createDefaultConfig(): SimulationConfig {
       vendorPopularitySigma: 1.15,
     },
     payers: {
+      // Synthetic top-level market shape knob: the simulator treats these as major
+      // payer organizations, not every plan product or TPA in the country.
       totalPayers: 15,
       payerSizeSigma: 0.95,
-      enrollmentRate: 0.90,
-      meanPayersPerPatient: 1.08,
-      monthlyMemberChurnRate: 0.025,
+      // Census estimated 92.0% of people had health insurance for some or all of
+      // 2024. Source: Census P60-288, "Health Insurance Coverage in the United
+      // States: 2024" (published Sep. 9, 2025).
+      enrollmentRate: 0.92,
+      // Approximation of payer relationships per person across the whole population.
+      // Census reported 13.1% with two or more coverage types in 2022; combining
+      // that with 92% insured suggests an overall mean a little above 1.0.
+      // Source: Census P60-281 / P60-288. This is an inference, not a direct tabulation.
+      meanPayersPerPatient: 1.05,
+      // SIPP found about 20% of people under 65 had at least one coverage
+      // transition across 24 months in 2013-2014; 1%/month is a rough
+      // order-of-magnitude proxy for payer membership churn, not a sourced
+      // payer-switch benchmark. Source: Census P70BR-168.
+      monthlyMemberChurnRate: 0.01,
     },
     events: {
-      outpatientScheduledMultiplier: 1.10,
+      // The design text calls out planned/appointment and completed/finished
+      // outpatient lifecycle states. Default to one scheduled notification per
+      // completed outpatient episode unless a scenario overrides it.
+      outpatientScheduledMultiplier: 1.0,
       outpatientCompletedNotifications: 1,
       edNotifications: 1,
       inpatientAdmissionNotifications: 1,
@@ -904,7 +935,11 @@ function buildPatient(
   // Payer enrollment.
   const payerEndpoints: PayerEndpoint[] = [];
   if (rng.bool(config.payers.enrollmentRate)) {
-    const payerCount = Math.max(1, rng.poisson(config.payers.meanPayersPerPatient));
+    // Treat meanPayersPerPatient as an overall population target, not a raw Poisson
+    // lambda among already-covered patients; otherwise the generator overshoots.
+    const meanPayersAmongCovered = config.payers.meanPayersPerPatient / Math.max(config.payers.enrollmentRate, 1e-9);
+    const meanExtraPayersAmongCovered = Math.max(0, meanPayersAmongCovered - 1);
+    const payerCount = Math.max(1, 1 + rng.poisson(meanExtraPayersAmongCovered));
     const payerIdSet = new Set<number>();
     const allPayerWeights = payersList.map((p) => p.weight);
     for (let i = 0; i < payerCount && i < payersList.length; i++) {
@@ -1170,6 +1205,7 @@ function blankResult(model: ProtocolName, description: string): ProtocolResult {
       networkToNetworkMessages: 0,
       networkToConsumerMessages: 0,
       controlPlaneMessages: 0,
+      controlPlaneTransportMessages: 0,
       dataPlaneBytes: 0,
       controlPlaneBytes: 0,
       sourceAuthChecks: 0,
@@ -1350,9 +1386,9 @@ function runModelA(world: SyntheticWorld): ProtocolResult {
 
   result.stakeholders.apps.totalSubscriptions = result.state.appToNetworkSubscriptions;
   result.stakeholders.apps.totalNotificationsReceived = appNotificationsReceived;
-  const enrolledPatientCount = world.patients.filter((p) => p.appEndpoints.length > 0).length;
-  result.stakeholders.apps.meanSubsPerEnrolledPatient = enrolledPatientCount > 0
-    ? 1 // In A, each patient has 1 subscription at the Broker
+  const enrolledWeightA = world.patients.filter((p) => p.appEndpoints.length > 0).reduce((s, p) => s + p.weight, 0);
+  result.stakeholders.apps.meanSubsPerEnrolledPatient = enrolledWeightA > 0
+    ? result.state.appToNetworkSubscriptions / enrolledWeightA
     : 0;
 
   result.stakeholders.payers.totalSubscriptions = result.state.payerToNetworkSubscriptions;
@@ -1443,7 +1479,9 @@ function runModelB(world: SyntheticWorld): ProtocolResult {
     const directTotalChurn = directAppChurn + directPayerChurn;
     // Each churn event = 1 deactivation + 1 new activation at source
     result.annual.controlPlaneMessages += directTotalChurn * 2;
-    result.annual.controlPlaneBytes += directTotalChurn * 2 * config.events.payloadBytes.appSubscriptionCreate;
+    result.annual.controlPlaneBytes +=
+      directTotalChurn *
+      (config.events.payloadBytes.appSubscriptionCreate + config.events.payloadBytes.appSubscriptionDelete);
 
     // Ghost subscriptions from failed deactivations at sources
     const failedDeactivations = directTotalChurn * failRate;
@@ -1477,7 +1515,8 @@ function runModelB(world: SyntheticWorld): ProtocolResult {
         result.annual.sourceToNetworkMessages += weight;
         result.annual.networkToNetworkMessages += remoteNetworks.length * weight;
         result.annual.networkToConsumerMessages += totalRecipients * weight;
-        result.annual.dataPlaneBytes +=
+        result.annual.controlPlaneTransportMessages += (1 + remoteNetworks.length + totalRecipients) * weight;
+        result.annual.controlPlaneBytes +=
           (1 + remoteNetworks.length + totalRecipients) *
           config.events.payloadBytes.careRelationshipNotification *
           weight;
@@ -1649,13 +1688,17 @@ function runModelBp(world: SyntheticWorld): ProtocolResult {
     // Direct source subscription churn — apps + providers only
     const directAppChurn = appDirect * config.population.annualAppChurnRate * weight;
     result.annual.controlPlaneMessages += directAppChurn * 2;
-    result.annual.controlPlaneBytes += directAppChurn * 2 * config.events.payloadBytes.appSubscriptionCreate;
+    result.annual.controlPlaneBytes +=
+      directAppChurn *
+      (config.events.payloadBytes.appSubscriptionCreate + config.events.payloadBytes.appSubscriptionDelete);
 
     // Payer churn = Group $member-add/$member-remove at each source the patient visits
     // Volume is similar to B (one op per source per member change) but these are Group membership ops
     const payerMemberChurn = patient.payerEndpoints.length * annualPayerChurnRate * baselineSources * weight;
     result.annual.controlPlaneMessages += payerMemberChurn * 2; // add + remove
-    result.annual.controlPlaneBytes += payerMemberChurn * 2 * config.events.payloadBytes.appSubscriptionCreate;
+    result.annual.controlPlaneBytes +=
+      payerMemberChurn *
+      (config.events.payloadBytes.appSubscriptionCreate + config.events.payloadBytes.appSubscriptionDelete);
 
     // Ghost: failed $member-remove means patient stays in Group (lighter than ghost subscription)
     const failedRemovals = (directAppChurn + payerMemberChurn) * failRate;
@@ -1688,7 +1731,8 @@ function runModelBp(world: SyntheticWorld): ProtocolResult {
         result.annual.sourceToNetworkMessages += weight;
         result.annual.networkToNetworkMessages += remoteNetworks.length * weight;
         result.annual.networkToConsumerMessages += totalRecipients * weight;
-        result.annual.dataPlaneBytes +=
+        result.annual.controlPlaneTransportMessages += (1 + remoteNetworks.length + totalRecipients) * weight;
+        result.annual.controlPlaneBytes +=
           (1 + remoteNetworks.length + totalRecipients) *
           config.events.payloadBytes.careRelationshipNotification *
           weight;
@@ -1928,7 +1972,10 @@ function runModelC(world: SyntheticWorld): ProtocolResult {
 
   result.stakeholders.apps.totalSubscriptions = result.state.appToNetworkSubscriptions;
   result.stakeholders.apps.totalNotificationsReceived = appNotificationsReceived;
-  result.stakeholders.apps.meanSubsPerEnrolledPatient = 1;
+  const enrolledWeightC = world.patients.filter((p) => p.appEndpoints.length > 0).reduce((s, p) => s + p.weight, 0);
+  result.stakeholders.apps.meanSubsPerEnrolledPatient = enrolledWeightC > 0
+    ? result.state.appToNetworkSubscriptions / enrolledWeightC
+    : 0;
 
   result.stakeholders.payers.totalSubscriptions = result.state.payerToNetworkSubscriptions;
   result.stakeholders.payers.totalNotificationsReceived = payerNotificationsReceived;
@@ -1942,12 +1989,13 @@ function runModelC(world: SyntheticWorld): ProtocolResult {
 }
 
 function finalizeDerived(world: SyntheticWorld, result: ProtocolResult): void {
-  const dataPlaneMessages =
+  const routedMessages =
     result.annual.sourceToNetworkMessages +
     result.annual.sourceToConsumerMessages +
     result.annual.networkToNetworkMessages +
     result.annual.networkToConsumerMessages;
-  const controlPlaneMessages = result.annual.controlPlaneMessages;
+  const dataPlaneMessages = Math.max(0, routedMessages - result.annual.controlPlaneTransportMessages);
+  const controlPlaneMessages = result.annual.controlPlaneMessages + result.annual.controlPlaneTransportMessages;
   const totalAnnualMessages = dataPlaneMessages + controlPlaneMessages;
 
   result.derived.dataPlaneMessages = dataPlaneMessages;

@@ -1,0 +1,540 @@
+====================================================================================================
+Scenario: baseline
+----------------------------------------------------------------------------------------------------
+Synthetic ecosystem summary
+
+Weighted population: 342,620,143
+Enrolled patient rate (apps): 7.0%
+Mean apps per patient: 0.08
+Mean apps per enrolled patient: 1.10
+Payer enrollment rate: 91.9%
+Mean payers per patient: 1.05
+Relationships per patient: mean 2.20, p50 2, p95 6
+Mean distinct provider networks per patient: 1.06
+Mean episodes per patient: 3.49
+Top 5% of patients account for 28.3% of episodes
+
+Provider-side network shares
+  Net-1: 31.6% (provider)
+  Net-2: 18.4% (provider)
+  Net-3: 13.4% (provider)
+  Net-4: 10.7% (provider)
+  Net-5: 6.8% (balanced)
+  Net-6: 5.9% (balanced)
+  Net-7: 5.3% (balanced)
+  Net-8: 2.2% (app)
+  Net-9: 2.0% (app)
+  Net-10: 1.9% (app)
+  Net-11: 1.8% (app)
+
+App-side network shares
+  Net-1: 18.7% (provider)
+  Net-2: 10.9% (provider)
+  Net-5: 9.2% (balanced)
+  Net-8: 9.1% (app)
+  Net-9: 8.3% (app)
+  Net-6: 8.0% (balanced)
+  Net-3: 7.9% (provider)
+  Net-10: 7.6% (app)
+  Net-7: 7.1% (balanced)
+  Net-11: 7.1% (app)
+  Net-4: 6.3% (provider)
+
+Message volume (annual, U.S.-scaled)
+
+Model                 Data msgs     Data GiB       Ctrl msgs     Ctrl GiB      Total msgs      Mean/day       P95/day
+Broker            8,354,024,147  10892.4 GiB   1,085,734,453    397.1 GiB   9,439,758,600    25,862,352    26,163,297
+Direct            3,129,986,330   4081.0 GiB   2,568,050,009   1499.1 GiB   5,698,036,339    15,611,058    15,792,761
+Direct+Group      3,129,986,330   4081.0 GiB   2,568,050,009   1499.1 GiB   5,698,036,339    15,611,058    15,792,761
+Encrypted         9,311,804,481  14361.3 GiB   2,538,794,017   1895.9 GiB  11,850,598,498    32,467,393    32,845,167
+
+Subscription and routing state
+Model               App→Broker   Payer→Broker   Peer interest   Direct src subs     Ghost subs       Keys@src
+Broker              26,464,551    359,608,392   4,137,820,612                 0              0              0
+Direct              26,464,551    359,608,392   4,137,820,612     1,238,351,969      3,347,279              0
+Direct+Group        26,464,551    359,608,392   4,137,820,612       449,696,576      3,347,279              0
+Encrypted           26,464,551    359,608,392   4,246,802,369                 0              0    849,315,362
+
+Per-source (data source / provider) burden
+Model             Subs managed   Mean subs/src   P95 subs/src   Mean msgs/src/day   P95 msgs/src/day
+Broker                       0               0              0                 431              1,447
+Direct           1,238,351,969          87,122        288,372                 603              2,143
+Direct+Group       449,696,576          31,637        108,511                 603              2,143
+Encrypted                    0               0              0                 603              2,057
+
+Per-stakeholder burden (annual)
+
+  Data Sources
+  Model             Outbound msgs     Auth checks   Subs to manage
+  Broker            2,236,333,066   2,236,333,066                0
+  Direct            3,129,986,330   3,129,986,330    1,238,351,969
+  Direct+Group      3,129,986,330   3,129,986,330      449,696,576
+  Encrypted         3,130,106,247   3,130,106,247                0
+
+  Networks / Brokers
+  Model                Relay msgs   Fan-out to clients   Routing state   Peer interest
+  Broker            8,354,024,147        3,898,160,677   4,523,893,554   4,137,820,612
+  Direct              929,559,855          418,864,545   4,523,893,554   4,137,820,612
+  Direct+Group        929,559,855          418,864,545   4,523,893,554   4,137,820,612
+  Encrypted         9,311,804,481        3,898,160,677   4,632,875,312   4,246,802,369
+
+  Patient Apps
+  Model                Total subs   Notifs received   Subs/enrolled pt
+  Broker               26,464,551       179,281,700                1.1
+  Direct               86,911,310       162,133,562                3.6
+  Direct+Group         86,911,310       162,133,562                3.6
+  Encrypted            26,464,551       179,281,700                1.1
+
+  Payers
+  Model                Total subs   Notifs received   Annual churn subs     Ghost subs   Ghost notifs
+  Broker              359,608,392     2,341,785,836          43,153,007              0              0
+  Direct            1,148,476,995     2,114,171,854         137,817,239      3,347,279      8,460,387
+  Direct+Group        359,821,602     2,114,171,854          43,153,007      3,347,279     23,297,792
+  Encrypted           359,608,392     2,341,785,836          43,153,007              0              0
+
+Direct: direct source subscription breakdown
+  Apps:      60,446,759
+  Payers:    788,868,603
+  Providers: 389,036,607
+  Total:     1,238,351,969
+  Ghost:     3,347,279 (0.3% of active)
+
+Direct+Group: direct source subscription breakdown
+  Apps:      60,446,759
+  Payers:    213,210 (Group subs)
+  Providers: 389,036,607
+  Total:     449,696,576
+  Ghost:     3,347,279 (0.7% of active)
+
+====================================================================================================
+Scenario: mature-adoption
+----------------------------------------------------------------------------------------------------
+Synthetic ecosystem summary
+
+Weighted population: 342,620,143
+Enrolled patient rate (apps): 37.7%
+Mean apps per patient: 0.52
+Mean apps per enrolled patient: 1.38
+Payer enrollment rate: 92.0%
+Mean payers per patient: 1.05
+Relationships per patient: mean 2.19, p50 2, p95 6
+Mean distinct provider networks per patient: 1.06
+Mean episodes per patient: 3.48
+Top 5% of patients account for 27.9% of episodes
+
+Provider-side network shares
+  Net-1: 31.6% (provider)
+  Net-2: 18.4% (provider)
+  Net-3: 13.4% (provider)
+  Net-4: 10.7% (provider)
+  Net-5: 6.8% (balanced)
+  Net-6: 5.9% (balanced)
+  Net-7: 5.3% (balanced)
+  Net-8: 2.2% (app)
+  Net-9: 2.0% (app)
+  Net-10: 1.9% (app)
+  Net-11: 1.8% (app)
+
+App-side network shares
+  Net-1: 18.7% (provider)
+  Net-2: 10.9% (provider)
+  Net-5: 9.2% (balanced)
+  Net-8: 9.1% (app)
+  Net-9: 8.3% (app)
+  Net-6: 8.0% (balanced)
+  Net-3: 7.9% (provider)
+  Net-10: 7.6% (app)
+  Net-7: 7.1% (balanced)
+  Net-11: 7.1% (app)
+  Net-4: 6.3% (provider)
+
+Message volume (annual, U.S.-scaled)
+
+Model                 Data msgs     Data GiB       Ctrl msgs     Ctrl GiB      Total msgs      Mean/day       P95/day
+Broker            9,843,037,013  12833.9 GiB   1,387,381,338    512.4 GiB  11,230,418,351    30,768,269    31,126,279
+Direct            3,954,975,662   5156.7 GiB   3,213,949,393   1879.7 GiB   7,168,925,056    19,640,891    19,869,468
+Direct+Group      3,954,975,662   5156.7 GiB   3,213,949,393   1879.7 GiB   7,168,925,056    19,640,891    19,869,468
+Encrypted        11,565,965,215  17837.8 GiB   3,546,768,773   2648.6 GiB  15,112,733,988    41,404,751    41,886,483
+
+Subscription and routing state
+Model               App→Broker   Payer→Broker   Peer interest   Direct src subs     Ghost subs       Keys@src
+Broker             178,039,702    359,876,778   5,242,839,097                 0              0              0
+Direct             178,039,702    359,876,778   5,242,839,097     1,590,562,621      4,766,206              0
+Direct+Group       178,039,702    359,876,778   5,242,839,097       800,782,291      4,766,206              0
+Encrypted          178,039,702    359,876,778   5,917,081,276                 0              0  1,203,062,094
+
+Per-source (data source / provider) burden
+Model             Subs managed   Mean subs/src   P95 subs/src   Mean msgs/src/day   P95 msgs/src/day
+Broker                       0               0              0                 430              1,447
+Direct           1,590,562,621         111,901        368,317                 762              2,683
+Direct+Group       800,782,291          56,337        185,601                 762              2,683
+Encrypted                    0               0              0                 734              2,495
+
+Per-stakeholder burden (annual)
+
+  Data Sources
+  Model             Outbound msgs     Auth checks   Subs to manage
+  Broker            2,228,863,947   2,228,863,947                0
+  Direct            3,954,975,662   3,954,975,662    1,590,562,621
+  Direct+Group      3,954,975,662   3,954,975,662      800,782,291
+  Encrypted         3,810,084,459   3,810,084,459                0
+
+  Networks / Brokers
+  Model                Relay msgs   Fan-out to clients   Routing state   Peer interest
+  Broker            9,843,037,013        4,940,111,359   5,780,755,577   5,242,839,097
+  Direct            1,099,336,701          536,583,116   5,780,755,577   5,242,839,097
+  Direct+Group      1,099,336,701          536,583,116   5,780,755,577   5,242,839,097
+  Encrypted        11,565,965,215        4,940,111,359   6,454,997,756   5,917,081,276
+
+  Patient Apps
+  Model                Total subs   Notifs received   Subs/enrolled pt
+  Broker              178,039,702     1,242,846,003                1.4
+  Direct              591,108,257     1,126,295,196                4.6
+  Direct+Group        591,108,257     1,126,295,196                4.6
+  Encrypted           178,039,702     1,242,846,003                1.4
+
+  Payers
+  Model                Total subs   Notifs received   Annual churn subs     Ghost subs   Ghost notifs
+  Broker              359,876,778     2,339,887,149          43,185,213              0              0
+  Direct            1,149,870,317     2,113,175,401         137,984,438      4,766,206     11,851,296
+  Direct+Group        360,089,988     2,113,175,401          43,185,213      4,766,206     23,539,767
+  Encrypted           359,876,778     2,339,887,149          43,185,213              0              0
+
+Direct: direct source subscription breakdown
+  Apps:      413,068,555
+  Payers:    789,993,540
+  Providers: 387,500,527
+  Total:     1,590,562,621
+  Ghost:     4,766,206 (0.3% of active)
+
+Direct+Group: direct source subscription breakdown
+  Apps:      413,068,555
+  Payers:    213,210 (Group subs)
+  Providers: 387,500,527
+  Total:     800,782,291
+  Ghost:     4,766,206 (0.6% of active)
+
+====================================================================================================
+Scenario: high-fragmentation
+----------------------------------------------------------------------------------------------------
+Synthetic ecosystem summary
+
+Weighted population: 342,620,143
+Enrolled patient rate (apps): 7.0%
+Mean apps per patient: 0.08
+Mean apps per enrolled patient: 1.09
+Payer enrollment rate: 92.1%
+Mean payers per patient: 1.05
+Relationships per patient: mean 2.47, p50 2, p95 7
+Mean distinct provider networks per patient: 1.11
+Mean episodes per patient: 3.50
+Top 5% of patients account for 28.5% of episodes
+
+Provider-side network shares
+  Net-1: 31.6% (provider)
+  Net-2: 18.4% (provider)
+  Net-3: 13.4% (provider)
+  Net-4: 10.7% (provider)
+  Net-5: 6.8% (balanced)
+  Net-6: 5.9% (balanced)
+  Net-7: 5.3% (balanced)
+  Net-8: 2.2% (app)
+  Net-9: 2.0% (app)
+  Net-10: 1.9% (app)
+  Net-11: 1.8% (app)
+
+App-side network shares
+  Net-1: 18.7% (provider)
+  Net-2: 10.9% (provider)
+  Net-5: 9.2% (balanced)
+  Net-8: 9.1% (app)
+  Net-9: 8.3% (app)
+  Net-6: 8.0% (balanced)
+  Net-3: 7.9% (provider)
+  Net-10: 7.6% (app)
+  Net-7: 7.1% (balanced)
+  Net-11: 7.1% (app)
+  Net-4: 6.3% (provider)
+
+Message volume (annual, U.S.-scaled)
+
+Model                 Data msgs     Data GiB       Ctrl msgs     Ctrl GiB      Total msgs      Mean/day       P95/day
+Broker            8,673,708,727  11309.2 GiB   1,085,956,471    397.1 GiB   9,759,665,197    26,738,809    27,049,948
+Direct            3,302,969,530   4306.6 GiB   2,734,008,582   1624.8 GiB   6,036,978,112    16,539,666    16,732,170
+Direct+Group      3,302,969,530   4306.6 GiB   2,734,008,582   1624.8 GiB   6,036,978,112    16,539,666    16,732,170
+Encrypted         9,754,355,499  15043.9 GiB   2,587,158,277   1931.9 GiB  12,341,513,775    33,812,367    34,205,785
+
+Subscription and routing state
+Model               App→Broker   Payer→Broker   Peer interest   Direct src subs     Ghost subs       Keys@src
+Broker              26,144,772    359,596,971   4,139,076,886                 0              0              0
+Direct              26,144,772    359,596,971   4,139,076,886     1,455,104,892      3,852,781              0
+Direct+Group        26,144,772    359,596,971   4,139,076,886       567,969,049      3,852,781              0
+Encrypted           26,144,772    359,596,971   4,243,159,175                 0              0    953,883,030
+
+Per-source (data source / provider) burden
+Model             Subs managed   Mean subs/src   P95 subs/src   Mean msgs/src/day   P95 msgs/src/day
+Broker                       0               0              0                 432              1,455
+Direct           1,455,104,892         102,371        339,765                 637              2,284
+Direct+Group       567,969,049          39,958        137,063                 637              2,284
+Encrypted                    0               0              0                 626              2,143
+
+Per-stakeholder burden (annual)
+
+  Data Sources
+  Model             Outbound msgs     Auth checks   Subs to manage
+  Broker            2,242,865,690   2,242,865,690                0
+  Direct            3,302,969,530   3,302,969,530    1,455,104,892
+  Direct+Group      3,302,969,530   3,302,969,530      567,969,049
+  Encrypted         3,249,246,692   3,249,246,692                0
+
+  Networks / Brokers
+  Model                Relay msgs   Fan-out to clients   Routing state   Peer interest
+  Broker            8,673,708,727        4,168,382,329   4,524,818,629   4,139,076,886
+  Direct            1,022,324,259          471,616,627   4,524,818,629   4,139,076,886
+  Direct+Group      1,022,324,259          471,616,627   4,524,818,629   4,139,076,886
+  Encrypted         9,754,355,499        4,168,382,329   4,628,900,918   4,243,159,175
+
+  Patient Apps
+  Model                Total subs   Notifs received   Subs/enrolled pt
+  Broker               26,144,772       176,586,422                1.1
+  Direct               92,678,749       158,690,230                3.9
+  Direct+Group         92,678,749       158,690,230                3.9
+  Encrypted            26,144,772       176,586,422                1.1
+
+  Payers
+  Model                Total subs   Notifs received   Annual churn subs     Ghost subs   Ghost notifs
+  Broker              359,596,971     2,354,271,485          43,151,637              0              0
+  Direct            1,246,946,024     2,110,460,136         149,633,523      3,852,781      8,745,498
+  Direct+Group        359,810,181     2,110,460,136          43,151,637      3,852,781     22,405,476
+  Encrypted           359,596,971     2,354,271,485          43,151,637              0              0
+
+Direct: direct source subscription breakdown
+  Apps:      66,533,977
+  Payers:    887,349,053
+  Providers: 501,221,862
+  Total:     1,455,104,892
+  Ghost:     3,852,781 (0.3% of active)
+
+Direct+Group: direct source subscription breakdown
+  Apps:      66,533,977
+  Payers:    213,210 (Group subs)
+  Providers: 501,221,862
+  Total:     567,969,049
+  Ghost:     3,852,781 (0.7% of active)
+
+====================================================================================================
+Scenario: cross-network-mix
+----------------------------------------------------------------------------------------------------
+Synthetic ecosystem summary
+
+Weighted population: 342,620,143
+Enrolled patient rate (apps): 6.9%
+Mean apps per patient: 0.08
+Mean apps per enrolled patient: 1.09
+Payer enrollment rate: 91.9%
+Mean payers per patient: 1.05
+Relationships per patient: mean 2.20, p50 2, p95 6
+Mean distinct provider networks per patient: 1.33
+Mean episodes per patient: 3.51
+Top 5% of patients account for 28.1% of episodes
+
+Provider-side network shares
+  Net-1: 31.6% (provider)
+  Net-2: 18.4% (provider)
+  Net-3: 13.4% (provider)
+  Net-4: 10.7% (provider)
+  Net-5: 6.8% (balanced)
+  Net-6: 5.9% (balanced)
+  Net-7: 5.3% (balanced)
+  Net-8: 2.2% (app)
+  Net-9: 2.0% (app)
+  Net-10: 1.9% (app)
+  Net-11: 1.8% (app)
+
+App-side network shares
+  Net-1: 18.7% (provider)
+  Net-2: 10.9% (provider)
+  Net-5: 9.2% (balanced)
+  Net-8: 9.1% (app)
+  Net-9: 8.3% (app)
+  Net-6: 8.0% (balanced)
+  Net-3: 7.9% (provider)
+  Net-10: 7.6% (app)
+  Net-7: 7.1% (balanced)
+  Net-11: 7.1% (app)
+  Net-4: 6.3% (provider)
+
+Message volume (annual, U.S.-scaled)
+
+Model                 Data msgs     Data GiB       Ctrl msgs     Ctrl GiB      Total msgs      Mean/day       P95/day
+Broker            8,663,167,447  11295.5 GiB   1,085,459,672    396.9 GiB   9,748,627,119    26,708,567    27,019,355
+Direct            3,130,603,046   4081.8 GiB   2,595,717,042   1517.1 GiB   5,726,320,088    15,688,548    15,871,152
+Direct+Group      3,130,603,046   4081.8 GiB   2,595,717,042   1517.1 GiB   5,726,320,088    15,688,548    15,871,152
+Encrypted         9,692,384,081  14948.3 GiB   2,535,024,510   1893.0 GiB  12,227,408,591    33,499,750    33,889,532
+
+Subscription and routing state
+Model               App→Broker   Payer→Broker   Peer interest   Direct src subs     Ghost subs       Keys@src
+Broker              25,919,214    359,448,502   4,137,380,916                 0              0              0
+Direct              25,919,214    359,448,502   4,137,380,916     1,235,947,918      3,348,735              0
+Direct+Group        25,919,214    359,448,502   4,137,380,916       444,454,487      3,348,735              0
+Encrypted           25,919,214    359,448,502   4,239,044,878                 0              0    849,572,327
+
+Per-source (data source / provider) burden
+Model             Subs managed   Mean subs/src   P95 subs/src   Mean msgs/src/day   P95 msgs/src/day
+Broker                       0               0              0                 434              1,447
+Direct           1,235,947,918          86,953        285,517                 603              2,182
+Direct+Group       444,454,487          31,268        105,656                 603              2,182
+Encrypted                    0               0              0                 606              2,065
+
+Per-stakeholder burden (annual)
+
+  Data Sources
+  Model             Outbound msgs     Auth checks   Subs to manage
+  Broker            2,249,897,969   2,249,897,969                0
+  Direct            3,130,603,046   3,130,603,046    1,235,947,918
+  Direct+Group      3,130,603,046   3,130,603,046      444,454,487
+  Encrypted         3,145,481,326   3,145,481,326                0
+
+  Networks / Brokers
+  Model                Relay msgs   Fan-out to clients   Routing state   Peer interest
+  Broker            8,663,167,447        3,900,310,618   4,522,748,632   4,137,380,916
+  Direct              957,777,479          418,530,491   4,522,748,632   4,137,380,916
+  Direct+Group        957,777,479          418,530,491   4,522,748,632   4,137,380,916
+  Encrypted         9,692,384,081        3,900,310,618   4,624,412,594   4,239,044,878
+
+  Patient Apps
+  Model                Total subs   Notifs received   Subs/enrolled pt
+  Broker               25,919,214       170,430,680                1.1
+  Direct               83,784,901       153,970,637                3.5
+  Direct+Group         83,784,901       153,970,637                3.5
+  Encrypted            25,919,214       170,430,680                1.1
+
+  Payers
+  Model                Total subs   Notifs received   Annual churn subs     Ghost subs   Ghost notifs
+  Broker              359,448,502     2,362,508,644          43,133,820              0              0
+  Direct            1,151,155,143     2,133,178,707         138,138,617      3,348,735      8,482,202
+  Direct+Group        359,661,712     2,133,178,707          43,133,820      3,348,735     23,587,477
+  Encrypted           359,448,502     2,362,508,644          43,133,820              0              0
+
+Direct: direct source subscription breakdown
+  Apps:      57,865,687
+  Payers:    791,706,640
+  Providers: 386,375,590
+  Total:     1,235,947,918
+  Ghost:     3,348,735 (0.3% of active)
+
+Direct+Group: direct source subscription breakdown
+  Apps:      57,865,687
+  Payers:    213,210 (Group subs)
+  Providers: 386,375,590
+  Total:     444,454,487
+  Ghost:     3,348,735 (0.8% of active)
+
+====================================================================================================
+Scenario: high-payer-churn
+----------------------------------------------------------------------------------------------------
+Synthetic ecosystem summary
+
+Weighted population: 342,620,143
+Enrolled patient rate (apps): 7.0%
+Mean apps per patient: 0.08
+Mean apps per enrolled patient: 1.10
+Payer enrollment rate: 91.9%
+Mean payers per patient: 1.05
+Relationships per patient: mean 2.20, p50 2, p95 6
+Mean distinct provider networks per patient: 1.06
+Mean episodes per patient: 3.49
+Top 5% of patients account for 28.3% of episodes
+
+Provider-side network shares
+  Net-1: 31.6% (provider)
+  Net-2: 18.4% (provider)
+  Net-3: 13.4% (provider)
+  Net-4: 10.7% (provider)
+  Net-5: 6.8% (balanced)
+  Net-6: 5.9% (balanced)
+  Net-7: 5.3% (balanced)
+  Net-8: 2.2% (app)
+  Net-9: 2.0% (app)
+  Net-10: 1.9% (app)
+  Net-11: 1.8% (app)
+
+App-side network shares
+  Net-1: 18.7% (provider)
+  Net-2: 10.9% (provider)
+  Net-5: 9.2% (balanced)
+  Net-8: 9.1% (app)
+  Net-9: 8.3% (app)
+  Net-6: 8.0% (balanced)
+  Net-3: 7.9% (provider)
+  Net-10: 7.6% (app)
+  Net-7: 7.1% (balanced)
+  Net-11: 7.1% (app)
+  Net-4: 6.3% (provider)
+
+Message volume (annual, U.S.-scaled)
+
+Model                 Data msgs     Data GiB       Ctrl msgs     Ctrl GiB      Total msgs      Mean/day       P95/day
+Broker            8,354,024,147  10892.4 GiB   3,417,112,403   1317.8 GiB  11,771,136,550    32,249,689    32,624,931
+Direct            3,129,986,330   4081.0 GiB   5,396,520,449   2813.4 GiB   8,526,506,779    23,360,293    23,632,134
+Direct+Group      3,129,986,330   4081.0 GiB   5,396,520,449   2813.4 GiB   8,526,506,779    23,360,293    23,632,134
+Encrypted         9,311,804,481  14361.3 GiB   7,776,291,095   5814.2 GiB  17,088,095,576    46,816,700    47,361,384
+
+Subscription and routing state
+Model               App→Broker   Payer→Broker   Peer interest   Direct src subs     Ghost subs       Keys@src
+Broker              26,464,551    359,608,392   4,137,820,612                 0              0              0
+Direct              26,464,551    359,608,392   4,137,820,612     1,238,351,969     31,549,182              0
+Direct+Group        26,464,551    359,608,392   4,137,820,612       449,696,576     31,549,182              0
+Encrypted           26,464,551    359,608,392   4,246,802,369                 0              0    849,315,362
+
+Per-source (data source / provider) burden
+Model             Subs managed   Mean subs/src   P95 subs/src   Mean msgs/src/day   P95 msgs/src/day
+Broker                       0               0              0                 431              1,447
+Direct           1,238,351,969          87,122        288,372                 603              2,143
+Direct+Group       449,696,576          31,637        108,511                 603              2,143
+Encrypted                    0               0              0                 603              2,057
+
+Per-stakeholder burden (annual)
+
+  Data Sources
+  Model             Outbound msgs     Auth checks   Subs to manage
+  Broker            2,236,333,066   2,236,333,066                0
+  Direct            3,129,986,330   3,129,986,330    1,238,351,969
+  Direct+Group      3,129,986,330   3,129,986,330      449,696,576
+  Encrypted         3,130,106,247   3,130,106,247                0
+
+  Networks / Brokers
+  Model                Relay msgs   Fan-out to clients   Routing state   Peer interest
+  Broker            8,354,024,147        3,898,160,677   4,523,893,554   4,137,820,612
+  Direct              929,559,855          418,864,545   4,523,893,554   4,137,820,612
+  Direct+Group        929,559,855          418,864,545   4,523,893,554   4,137,820,612
+  Encrypted         9,311,804,481        3,898,160,677   4,632,875,312   4,246,802,369
+
+  Patient Apps
+  Model                Total subs   Notifs received   Subs/enrolled pt
+  Broker               26,464,551       179,281,700                1.1
+  Direct               86,911,310       162,133,562                3.6
+  Direct+Group         86,911,310       162,133,562                3.6
+  Encrypted            26,464,551       179,281,700                1.1
+
+  Payers
+  Model                Total subs   Notifs received   Annual churn subs     Ghost subs   Ghost notifs
+  Broker              359,608,392     2,341,785,836         215,765,035              0              0
+  Direct            1,148,476,995     2,114,171,854         689,086,197     31,549,182     79,741,876
+  Direct+Group        359,821,602     2,114,171,854         215,765,035     31,549,182    219,589,195
+  Encrypted           359,608,392     2,341,785,836         215,765,035              0              0
+
+Direct: direct source subscription breakdown
+  Apps:      60,446,759
+  Payers:    788,868,603
+  Providers: 389,036,607
+  Total:     1,238,351,969
+  Ghost:     31,549,182 (2.5% of active)
+
+Direct+Group: direct source subscription breakdown
+  Apps:      60,446,759
+  Payers:    213,210 (Group subs)
+  Providers: 389,036,607
+  Total:     449,696,576
+  Ghost:     31,549,182 (7.0% of active)
+

@@ -38,9 +38,48 @@ export interface ExtractedProtocol {
   p95DailyMessages: number;
 }
 
+export interface NumericBand {
+  p10: number;
+  p50: number;
+  p90: number;
+  mean: number;
+  min: number;
+  max: number;
+}
+
+export type ExtractedProtocolBands = {
+  [K in keyof ExtractedProtocol]: NumericBand;
+};
+
+export interface ScenarioBundle {
+  id: string;
+  label: string;
+  description: string;
+  runs: number;
+  seeds: number[];
+  world: any;
+  worldBands: Record<string, NumericBand>;
+  protocols: Record<ModelId, ExtractedProtocol>;
+  protocolBands: Record<ModelId, ExtractedProtocolBands>;
+  winners: {
+    totalMessages: ModelId[];
+    srcP95Subs: ModelId[];
+    payerTotalSubs: ModelId[];
+    payerChurn: ModelId[];
+  };
+}
+
 export interface SweepData {
+  meta: {
+    kind: string;
+    generatedAt: string;
+    inputHash: string;
+    samplePatients: number;
+    seeds: number[];
+    bundleCount: number;
+  };
   scenarios: Record<string, { world: any; protocols: Record<ModelId, ExtractedProtocol> }>;
-  sweeps: Record<string, Array<{ param: number; label: string } & Record<ModelId, ExtractedProtocol>>>;
+  scenarioBundles: ScenarioBundle[];
   labels: Record<ModelId, string>;
 }
 

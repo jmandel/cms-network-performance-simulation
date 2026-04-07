@@ -129,12 +129,25 @@ function Architectures() {
 
 function Finding1() {
   const B = useStore((s) => s.baseline);
+  const sweepData = useStore((s) => s.sweepData);
   if (!B) return null;
   const savings = B.A.totalMessages - B.B.totalMessages;
+  const reductionPct = Math.round((savings / B.A.totalMessages) * 100);
+  const directWins = sweepData?.scenarioBundles
+    ? sweepData.scenarioBundles.filter((bundle) => {
+        const best = Math.min(
+          bundle.protocols.A.totalMessages,
+          bundle.protocols.B.totalMessages,
+          bundle.protocols.Bp.totalMessages,
+          bundle.protocols.C.totalMessages
+        );
+        return bundle.protocols.B.totalMessages <= best * 1.000001;
+      }).length
+    : null;
   return (
     <Section id="finding1">
       <h2>Total Work: Direct Models Do Less</h2>
-      <p>All four architectures deliver the same notifications to the same consumers. The question is how many intermediate messages the system needs. Direct models eliminate network relay hops, reducing total messages by ~34%.</p>
+      <p>All four architectures deliver the same notifications to the same consumers. The question is how many intermediate messages the system needs. Direct removes relay hops, cutting total messages by about {reductionPct}% in baseline and staying lowest across {directWins ?? "all"} tested scenario bundles.</p>
       <div className="metric-row">
         {MODEL_IDS.map((m) => (
           <MetricCard key={m} value={B[m].totalMessages} label={`${MODEL_LABELS[m]} — total messages/yr`} color={MODEL_COLORS[m]} />
@@ -151,7 +164,14 @@ function Finding1() {
 
 function Finding2() {
   const B = useStore((s) => s.baseline);
+  const sweepData = useStore((s) => s.sweepData);
   if (!B) return null;
+  const directP95Min = sweepData?.scenarioBundles?.length
+    ? Math.min(...sweepData.scenarioBundles.map((bundle) => bundle.protocols.B.src_p95Subs))
+    : null;
+  const directP95Max = sweepData?.scenarioBundles?.length
+    ? Math.max(...sweepData.scenarioBundles.map((bundle) => bundle.protocols.B.src_p95Subs))
+    : null;
   return (
     <Section id="finding2">
       <h2>Who Does the Work</h2>
@@ -170,7 +190,7 @@ function Finding2() {
         />
       </div>
       <Callout variant="warn">
-        <strong>Adoption question:</strong> A p95 source in Direct manages <strong>{ff(B.B.src_p95Subs)}</strong> subscriptions and sends <strong>{ff(B.B.src_p95MsgsDay)}</strong> msgs/day. Direct+Group reduces subs to <strong>{ff(B.Bp.src_p95Subs)}</strong> (payer per-patient subs collapse to Group subs). Broker requires <strong>zero</strong> subscription management — sources send <strong>{ff(B.A.src_p95MsgsDay)}</strong> msgs/day to their network only.
+        <strong>Adoption question:</strong> A p95 source in Direct manages <strong>{ff(B.B.src_p95Subs)}</strong> subscriptions and sends <strong>{ff(B.B.src_p95MsgsDay)}</strong> msgs/day. Across scenario bundles, that p95 subscription burden stays in the <strong>{directP95Min ? ff(directP95Min) : "n/a"}-{directP95Max ? ff(directP95Max) : "n/a"}</strong> range. Direct+Group reduces subs to <strong>{ff(B.Bp.src_p95Subs)}</strong>. Broker requires <strong>zero</strong> subscription management — sources send <strong>{ff(B.A.src_p95MsgsDay)}</strong> msgs/day to their network only.
       </Callout>
     </Section>
   );
@@ -180,11 +200,27 @@ function Finding2() {
 
 function Finding3() {
   const B = useStore((s) => s.baseline);
+  const sweepData = useStore((s) => s.sweepData);
   if (!B) return null;
+  const baselineShare = Math.round((B.B.directSourceSubs_payers / B.B.directSourceSubs) * 100);
+  const payerShareMin = sweepData?.scenarioBundles?.length
+    ? Math.min(
+        ...sweepData.scenarioBundles.map((bundle) =>
+          (bundle.protocols.B.directSourceSubs_payers / bundle.protocols.B.directSourceSubs) * 100
+        )
+      )
+    : null;
+  const payerShareMax = sweepData?.scenarioBundles?.length
+    ? Math.max(
+        ...sweepData.scenarioBundles.map((bundle) =>
+          (bundle.protocols.B.directSourceSubs_payers / bundle.protocols.B.directSourceSubs) * 100
+        )
+      )
+    : null;
   return (
     <Section id="finding3">
       <h2>Payer Subscription Burden</h2>
-      <p>Payers account for <strong>{Math.round(B.B.directSourceSubs_payers / B.B.directSourceSubs * 100)}%</strong> of Direct's source subscription state. This is where the architectural choice matters most.</p>
+      <p>Payers account for <strong>{baselineShare}%</strong> of Direct's source subscription state in baseline, and stay in the <strong>{payerShareMin ? `${Math.round(payerShareMin)}-${Math.round(payerShareMax!)}%` : "n/a"}</strong> range across tested bundles. This is where the architectural choice matters most.</p>
 
       <div className="g2" style={{ marginBottom: 16 }}>
         <div className="card" style={{ textAlign: "center", borderTop: `3px solid ${MODEL_COLORS.A}` }}>
@@ -228,7 +264,7 @@ function Finding3() {
         <strong>Stale subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. If {fmt(B.B.payer_churn)} annual deactivations have even a modest failure rate (simulated at 5%), <strong>{fmt(B.B.ghostSubs)} stale subs accumulate/yr</strong>. Sources can mitigate this with subscription TTLs, periodic reconciliation, or heartbeat-based expiry — but these add operational complexity that Broker and Encrypted avoid entirely, since subscription lifecycle is managed at the network level.
       </Callout>
       <Callout variant="good">
-        <strong>Direct+Group reduces exposure:</strong> Payer subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> long-lived Group subs. Member churn becomes Group membership ops instead of subscription CRUD. Stale Group memberships are also easier to reconcile (a payer can periodically sync its full member list per source) than orphaned subscriptions at thousands of sources.
+        <strong>Direct+Group changes the payer problem:</strong> Payer source subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> Group subs. In this simulator, the main credited benefit is the collapse in active payer-side source state; ghost cleanup remains scenario-sensitive and is not assumed away.
       </Callout>
     </Section>
   );
@@ -278,7 +314,7 @@ function TradeoffTable() {
       </table>
       <details>
         <summary>Scenario sensitivity</summary>
-        <p>This report now summarizes multi-seed scenario bundles rather than one-factor sweeps. See <a href="#sensitivity">Sensitivity</a> for p10/p50/p90 ranges and winner stability, or use the <a href="#explorer">Explorer</a> for custom combinations.</p>
+        <p><a href="#sensitivity">Sensitivity</a> shows p10/p50/p90 ranges and winner stability across multi-seed scenario bundles. The <a href="#explorer">Explorer</a> supports custom parameter combinations.</p>
       </details>
     </Section>
   );
@@ -289,16 +325,37 @@ function Sensitivity() {
   if (!sweepData?.scenarioBundles?.length) return null;
 
   const bundles = sweepData.scenarioBundles;
-  const totalWins = bundles.filter((b) => b.winners.totalMessages.includes("B") && b.winners.totalMessages.includes("Bp")).length;
-  const sourceWins = bundles.filter((b) => b.winners.srcP95Subs.includes("A")).length;
-  const payerChurnWins = bundles.filter((b) => b.winners.payerChurn.includes("A") && b.winners.payerChurn.includes("Bp") && b.winners.payerChurn.includes("C")).length;
+  const directWins = bundles.filter((bundle) => {
+    const best = Math.min(
+      bundle.protocols.A.totalMessages,
+      bundle.protocols.B.totalMessages,
+      bundle.protocols.Bp.totalMessages,
+      bundle.protocols.C.totalMessages
+    );
+    return bundle.protocols.B.totalMessages <= best * 1.000001;
+  }).length;
+  const sourceWins = bundles.filter((bundle) => {
+    const best = Math.min(
+      bundle.protocols.A.src_p95Subs,
+      bundle.protocols.B.src_p95Subs,
+      bundle.protocols.Bp.src_p95Subs,
+      bundle.protocols.C.src_p95Subs
+    );
+    return bundle.protocols.A.src_p95Subs <= best * 1.000001;
+  }).length;
+  const payerMinDirect = Math.min(...bundles.map((bundle) => bundle.protocols.B.directSourceSubs_payers));
+  const payerMaxDirect = Math.max(...bundles.map((bundle) => bundle.protocols.B.directSourceSubs_payers));
+  const payerMinGroup = Math.min(...bundles.map((bundle) => bundle.protocols.Bp.directSourceSubs_payers));
+  const payerMaxGroup = Math.max(...bundles.map((bundle) => bundle.protocols.Bp.directSourceSubs_payers));
+  const worstGhost = Math.max(...bundles.map((bundle) => bundle.protocols.B.ghostSubs));
+  const encryptionStress = bundles.find((bundle) => bundle.id === "c-encryption-stress");
 
   return (
     <Section id="sensitivity">
       <h2>Scenario Bundles</h2>
       <p>Each bundle is run across <strong>{sweepData.meta.seeds.length}</strong> seeds at <strong>{ff(sweepData.meta.samplePatients)}</strong> sampled patients. Values below show medians with p10-p90 ranges, which are more decision-useful than a single world draw.</p>
       <Callout variant="info">
-        <strong>Stability:</strong> Direct and Direct+Group have the lowest total-message count in <strong>{totalWins}/{bundles.length}</strong> bundles. Broker has the lowest p95 source subscription burden in <strong>{sourceWins}/{bundles.length}</strong>. Broker, Direct+Group, and Encrypted tie for lowest payer churn in <strong>{payerChurnWins}/{bundles.length}</strong>.
+        <strong>Key messages:</strong> Direct has the lowest total-message count in <strong>{directWins}/{bundles.length}</strong> bundles. Broker keeps source subscription burden lowest in <strong>{sourceWins}/{bundles.length}</strong>. Direct+Group cuts payer source state from roughly <strong>{fmt(payerMinDirect)}-{fmt(payerMaxDirect)}</strong> per-patient subscriptions to about <strong>{fmt(payerMinGroup)}-{fmt(payerMaxGroup)}</strong> Group subscriptions, while high-churn bundles still push Direct ghost subscriptions as high as <strong>{fmt(worstGhost)}</strong>. {encryptionStress ? `Under the encryption-stress bundle, Encrypted reaches ${fmt(encryptionStress.protocols.C.totalMessages)} total messages/yr.` : ""}
       </Callout>
       <table>
         <thead>
@@ -529,6 +586,7 @@ function App() {
       <Finding2 />
       <Finding3 />
       <TradeoffTable />
+      <Sensitivity />
       <Methodology />
       <Explorer />
     </>
