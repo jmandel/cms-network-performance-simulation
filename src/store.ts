@@ -63,8 +63,15 @@ export const useStore = create<ReportStore>((set, get) => ({
         baselineWorld: data.scenarios.baseline.world,
       });
     }
-    // Auto-run explorer with defaults
-    setTimeout(() => get().runSimulation(), 100);
+    // Auto-run explorer once sim.js is loaded
+    function waitForSim() {
+      if ((window as any).Sim) {
+        get().runSimulation();
+      } else {
+        setTimeout(waitForSim, 200);
+      }
+    }
+    waitForSim();
   },
 
   setSlider: (key, value) =>
@@ -73,7 +80,7 @@ export const useStore = create<ReportStore>((set, get) => ({
   runSimulation: () => {
     const Sim = (window as any).Sim;
     if (!Sim) {
-      set({ simStatus: "Simulator not loaded yet — try again in a moment" });
+      set({ simStatus: "Waiting for simulator to load..." });
       return;
     }
     set({ isSimRunning: true, simStatus: "Running..." });
