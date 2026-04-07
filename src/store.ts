@@ -3,7 +3,9 @@ import type { ModelId } from "./constants";
 import type { ExtractedProtocol, SweepData } from "./extract";
 import { extractFromAllResults } from "./extract";
 import { createDefaultConfig, buildWorld, runAll } from "../fhir_network_sim";
-import type { SimulationConfig } from "../fhir_network_sim";
+
+// Derive explorer defaults from the sim's own defaults — single source of truth
+const _defaults = createDefaultConfig();
 
 interface Sliders {
   appEnrollmentRate: number;
@@ -41,11 +43,11 @@ export const useStore = create<ReportStore>((set, get) => ({
   baselineWorld: null,
 
   sliders: {
-    appEnrollmentRate: 0.2,
-    payerEnrollmentRate: 0.9,
-    payerMonthlyChurn: 0.025,
-    appAnnualChurn: 0.12,
-    deactivationFailure: 0.05,
+    appEnrollmentRate: _defaults.population.appEnrollmentRate,
+    payerEnrollmentRate: _defaults.payers.enrollmentRate,
+    payerMonthlyChurn: _defaults.payers.monthlyMemberChurnRate,
+    appAnnualChurn: _defaults.population.annualAppChurnRate,
+    deactivationFailure: _defaults.modelB.deactivationFailureRate,
     relationshipMult: 1.0,
     samplePatients: 20000,
   },

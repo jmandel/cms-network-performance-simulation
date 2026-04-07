@@ -72,6 +72,8 @@ function deepMerge(target: any, source: any): any {
 }
 
 const base = createDefaultConfig();
+// Use fewer patients for sweep points (relative comparisons, not absolute precision)
+const sweepBase = { ...base, population: { ...base.population, samplePatients: 30_000 } };
 const data: any = { scenarios: {}, sweeps: {} };
 
 // Scenarios
@@ -114,21 +116,21 @@ for (const [name, overrides] of scenarios) {
 // 1. App enrollment rate
 data.sweeps.appEnrollment = [];
 for (const rate of [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60]) {
-  const r = runWith(base, { population: { appEnrollmentRate: rate } } as any);
+  const r = runWith(sweepBase, { population: { appEnrollmentRate: rate } } as any);
   data.sweeps.appEnrollment.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
 }
 
 // 2. Payer monthly churn
 data.sweeps.payerChurn = [];
 for (const rate of [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.07, 0.10]) {
-  const r = runWith(base, { payers: { monthlyMemberChurnRate: rate } } as any);
+  const r = runWith(sweepBase, { payers: { monthlyMemberChurnRate: rate } } as any);
   data.sweeps.payerChurn.push({ param: rate, label: `${(rate * 100).toFixed(1)}%/mo`, ...extract(r) });
 }
 
 // 3. Deactivation failure rate
 data.sweeps.deactivationFailure = [];
 for (const rate of [0.0, 0.01, 0.02, 0.05, 0.10, 0.15, 0.20, 0.30]) {
-  const r = runWith(base, { modelB: { deactivationFailureRate: rate } } as any);
+  const r = runWith(sweepBase, { modelB: { deactivationFailureRate: rate } } as any);
   data.sweeps.deactivationFailure.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
 }
 
@@ -139,7 +141,7 @@ for (const mult of [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0]) {
     ...c,
     meanBaselineRelationships: c.meanBaselineRelationships * mult,
   }));
-  const r = runWith(base, { population: { cohorts } } as any);
+  const r = runWith(sweepBase, { population: { cohorts } } as any);
   const meanRels = r.world.meanRelationshipsPerPatient;
   data.sweeps.relationships.push({ param: mult, label: `${meanRels.toFixed(1)} rels`, meanRels, ...extract(r) });
 }
@@ -147,14 +149,14 @@ for (const mult of [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0]) {
 // 5. Number of payers
 data.sweeps.payerCount = [];
 for (const count of [5, 10, 15, 20, 30, 50]) {
-  const r = runWith(base, { payers: { totalPayers: count } } as any);
+  const r = runWith(sweepBase, { payers: { totalPayers: count } } as any);
   data.sweeps.payerCount.push({ param: count, label: `${count}`, ...extract(r) });
 }
 
 // 6. Payer enrollment rate
 data.sweeps.payerEnrollment = [];
 for (const rate of [0.3, 0.5, 0.7, 0.9, 0.95]) {
-  const r = runWith(base, { payers: { enrollmentRate: rate } } as any);
+  const r = runWith(sweepBase, { payers: { enrollmentRate: rate } } as any);
   data.sweeps.payerEnrollment.push({ param: rate, label: `${(rate * 100).toFixed(0)}%`, ...extract(r) });
 }
 

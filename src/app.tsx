@@ -170,7 +170,7 @@ function Finding3() {
   return (
     <Section id="finding3">
       <h2>Payer Subscription Burden</h2>
-      <p>With 90% coverage and mean 2.19 sources per patient, payers account for <strong>62%</strong> of Direct's source subscription state. This is where the architectural choice matters most for payers.</p>
+      <p>Payers account for <strong>{Math.round(B.B.directSourceSubs_payers / B.B.directSourceSubs * 100)}%</strong> of Direct's source subscription state. This is where the architectural choice matters most.</p>
 
       <div className="g2" style={{ marginBottom: 16 }}>
         <div className="card" style={{ textAlign: "center", borderTop: `3px solid ${MODEL_COLORS.A}` }}>
@@ -214,7 +214,7 @@ function Finding3() {
         <strong>Ghost subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. At 5% failure rate, <strong>{fmt(B.B.ghostSubs)}</strong> ghost subs accumulate — notifications sent to payers who no longer cover the patient.
       </Callout>
       <Callout variant="good">
-        <strong>Direct+Group mitigates this:</strong> Payer subs collapse from <strong>959M</strong> per-patient subscriptions to <strong>~180K</strong> long-lived Group subs. Member churn becomes Group membership ops, not subscription CRUD. Payer burden approaches Broker while preserving Direct's lower message volume.
+        <strong>Direct+Group mitigates this:</strong> Payer subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> long-lived Group subs. Member churn becomes Group membership ops, not subscription CRUD. Payer burden approaches Broker while preserving Direct's lower message volume.
       </Callout>
     </Section>
   );
@@ -226,7 +226,7 @@ function TradeoffTable() {
   const B = useStore((s) => s.baseline);
   if (!B) return null;
   const dims: [string, Record<ModelId, string>, string][] = [
-    ["Source subscription burden", { A: "0", B: "1.5B", Bp: "579M", C: "0" }, "A,C"],
+    ["Source subscription burden", { A: fmt(B.A.directSourceSubs), B: fmt(B.B.directSourceSubs), Bp: fmt(B.Bp.directSourceSubs), C: fmt(B.C.directSourceSubs) }, "A,C"],
     ["Source outbound msgs/day (p95)", { A: ff(B.A.src_p95MsgsDay), B: ff(B.B.src_p95MsgsDay), Bp: ff(B.Bp.src_p95MsgsDay), C: ff(B.C.src_p95MsgsDay) }, "A"],
     ["Total annual messages", { A: fmt(B.A.totalMessages), B: fmt(B.B.totalMessages), Bp: fmt(B.Bp.totalMessages), C: fmt(B.C.totalMessages) }, "B,Bp"],
     ["Network relay messages", { A: fmt(B.A.net_relay), B: fmt(B.B.net_relay), Bp: fmt(B.Bp.net_relay), C: fmt(B.C.net_relay) }, "B,Bp"],
