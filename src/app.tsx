@@ -441,7 +441,7 @@ function Explorer() {
     useStore.getState().init();
   }, []);
 
-  const [expandedHelp, setExpandedHelp] = React.useState<string | null>(null);
+  const [helpExpanded, setHelpExpanded] = React.useState(false);
 
   const sl = (
     key: keyof typeof sliders,
@@ -454,23 +454,22 @@ function Explorer() {
     <div className="slider-group">
       <label>
         {label}
-        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {display(sliders[key])}
-          <button
-            onClick={() => setExpandedHelp(expandedHelp === key ? null : key)}
-            style={{
-              background: expandedHelp === key ? "#2563eb" : "#e5e7eb",
-              color: expandedHelp === key ? "#fff" : "#6b7280",
-              border: "none", borderRadius: "50%", width: 18, height: 18,
-              fontSize: 11, fontWeight: 700, cursor: "pointer", lineHeight: 1,
-              flexShrink: 0,
-            }}
-            title={desc}
-          >?</button>
-        </span>
+        <span style={{ color: "var(--muted)", fontWeight: 400 }}>{display(sliders[key])}</span>
       </label>
-      <div style={{ fontSize: ".75rem", color: "var(--muted)", marginBottom: 4 }}>{desc}</div>
-      {expandedHelp === key && (
+      <div style={{ fontSize: ".75rem", color: "var(--muted)", marginBottom: 4 }}>
+        {desc}
+        {!helpExpanded && (
+          <>
+            {" "}
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); setHelpExpanded(true); }}
+              style={{ color: "var(--broker)", textDecoration: "none", fontWeight: 600 }}
+            >…more</a>
+          </>
+        )}
+      </div>
+      {helpExpanded && (
         <div style={{
           fontSize: ".75rem", color: "var(--text)", background: "#f0f4ff",
           padding: "8px 10px", borderRadius: 6, marginBottom: 6, lineHeight: 1.5,
@@ -486,6 +485,15 @@ function Explorer() {
       <p>Run the full simulation in your browser. Adjust parameters and compare all four architectures.</p>
       <div className="explorer-grid">
         <div className="explorer-controls card">
+          {helpExpanded && (
+            <div style={{ textAlign: "right", marginBottom: 8 }}>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setHelpExpanded(false); }}
+                style={{ color: "var(--broker)", fontSize: ".75rem", textDecoration: "none", fontWeight: 600 }}
+              >hide details</a>
+            </div>
+          )}
           {sl("appEnrollmentRate", "App enrollment",
             "Fraction of patients using a health app",
             "What share of patients have at least one FHIR-connected health app (e.g., Apple Health, patient portal app). Higher enrollment means more app subscriptions at sources in Direct models. Current real-world estimate is ~7% based on ONC 2024 data; slider lets you test future adoption scenarios.",
