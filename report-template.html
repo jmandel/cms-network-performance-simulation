@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FHIR Subscription Architecture — Comparative Analysis</title>
+<script src="d3.min.js"></script>
+<style>
+:root{
+  --broker:#2563eb;--direct:#dc2626;--group:#e97a0a;--encrypted:#059669;
+  --bg:#fafafa;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);color:var(--text);background:var(--bg);line-height:1.7}
+.container{max-width:960px;margin:0 auto;padding:0 24px}
+.hero{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:56px 0 40px}
+.hero h1{font-size:2rem;font-weight:700;margin-bottom:6px}
+.hero .sub{font-size:1rem;opacity:.85;margin-bottom:16px}
+.hero .meta{font-size:.82rem;opacity:.55}
+.hero a{color:#93bbfd}
+nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--border)}
+nav .container{display:flex;gap:4px;overflow-x:auto;padding:8px 24px}
+nav a{font-size:.8rem;padding:6px 12px;border-radius:6px;text-decoration:none;color:var(--muted);white-space:nowrap}
+nav a:hover{background:#eff6ff;color:var(--broker)}
+section{padding:40px 0;border-bottom:1px solid var(--border)}
+section:last-child{border-bottom:none}
+h2{font-size:1.4rem;font-weight:700;margin-bottom:12px}
+h3{font-size:1.05rem;font-weight:600;margin:20px 0 8px}
+p{color:var(--muted);margin-bottom:16px;font-size:.92rem}
+strong{color:var(--text)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:14px}
+.g2{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.g4{display:grid;gap:10px;grid-template-columns:repeat(4,1fr)}
+.arch{padding:14px;border-radius:10px;border:2px solid;font-size:.82rem}
+.arch.a{border-color:var(--broker);background:#eff6ff}
+.arch.b{border-color:var(--direct);background:#fef2f2}
+.arch.bp{border-color:var(--group);background:#fff7ed}
+.arch.c{border-color:var(--encrypted);background:#ecfdf5}
+.arch strong{display:block;margin-bottom:2px}
+.arch p{color:var(--muted);margin:0;font-size:.8rem;line-height:1.4}
+.tag{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:99px;color:#fff;margin-bottom:4px}
+.tag-a{background:var(--broker)}.tag-b{background:var(--direct)}.tag-bp{background:var(--group)}.tag-c{background:var(--encrypted)}
+.callout{padding:14px 18px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.88rem;border-left:4px solid}
+.callout.warn{background:#fffbeb;border-color:#f59e0b}.callout.warn strong{color:#92400e}
+.callout.bad{background:#fef2f2;border-color:#dc2626}.callout.bad strong{color:#991b1b}
+.callout.good{background:#ecfdf5;border-color:#059669}.callout.good strong{color:#065f46}
+.callout.info{background:#eff6ff;border-color:#2563eb}.callout.info strong{color:#1e40af}
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:14px}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--border)}
+th{font-weight:600;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
+td:first-child,th:first-child{text-align:left}
+.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.metric-box{text-align:center;padding:14px;border-radius:8px;border:1px solid var(--border);background:#fff}
+.metric-box .num{font-size:1.6rem;font-weight:700}
+.metric-box .lbl{font-size:.72rem;color:var(--muted);margin-top:2px}
+svg text{font-family:var(--font)}.axis text{font-size:10px;fill:var(--muted)}
+.axis line,.axis path{stroke:var(--border)}.grid line{stroke:var(--border);stroke-dasharray:2,3}.grid path{display:none}
+.tooltip{position:fixed;background:rgba(0,0,0,.88);color:#fff;padding:8px 12px;border-radius:6px;font-size:.78rem;pointer-events:none;z-index:999;max-width:280px;line-height:1.5}
+details{margin:14px 0}details summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--muted);padding:8px 0}
+details[open] summary{margin-bottom:8px}
+.explorer-grid{display:grid;grid-template-columns:280px 1fr;gap:20px}
+.explorer-controls{position:sticky;top:60px;max-height:calc(100vh - 80px);overflow-y:auto}
+.slider-group{margin-bottom:14px}
+.slider-group label{display:flex;justify-content:space-between;font-size:.8rem;font-weight:600;margin-bottom:3px}
+.slider-group label span{font-weight:400;color:var(--muted)}
+.slider-group input[type="range"]{width:100%;accent-color:var(--broker)}
+.run-btn{background:var(--broker);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;width:100%;margin-bottom:12px}
+.run-btn:hover{background:#1d4ed8}.run-btn:disabled{background:#93c5fd;cursor:wait}
+.sim-status{text-align:center;font-size:.82rem;color:var(--muted);padding:6px}
+@media(max-width:768px){.g2,.g4,.metric-row{grid-template-columns:1fr 1fr}.explorer-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.__SWEEP_DATA__ = __SWEEP_DATA_PLACEHOLDER__;</script>
+<script src="sim.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

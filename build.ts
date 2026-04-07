@@ -1,14 +1,33 @@
 /**
- * Build script: produces dist/ with index.html, d3.min.js, sim.js
+ * Build script: produces dist/ with index.html, d3.min.js, sim.js, app.js
  *
  *  bun run build.ts          # uses cached sweep data
- *  bun run build.ts --fresh  # regenerates sweep data
+ *  bun run build.ts --fresh  # regenerates sweep data (~50 sims)
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync } from "fs";
 
 mkdirSync("dist", { recursive: true });
 
-// 1. Bundle sim for browser
+// 1. Bundle React app
+console.log("Bundling app...");
+const appBuild = await Bun.build({
+  entrypoints: ["./src/app.tsx"],
+  target: "browser",
+  minify: true,
+  define: { "process.env.NODE_ENV": '"production"' },
+  // d3 loaded as global <script>, not bundled
+  external: ["d3"],
+});
+if (!appBuild.success) {
+  console.error("App build failed:");
+  appBuild.logs.forEach((l) => console.error(l));
+  process.exit(1);
+}
+const appJs = await appBuild.outputs[0].text();
+writeFileSync("dist/app.js", appJs);
+console.log(`  dist/app.js: ${(appJs.length / 1024).toFixed(0)} KB`);
+
+// 2. Bundle sim for browser
 console.log("Bundling sim...");
 const simBuild = await Bun.build({
   entrypoints: ["./sim_browser.ts"],
@@ -19,49 +38,28 @@ const simJs = await simBuild.outputs[0].text();
 writeFileSync("dist/sim.js", simJs);
 console.log(`  dist/sim.js: ${(simJs.length / 1024).toFixed(0)} KB`);
 
-// 2. Copy d3 from node_modules
+// 3. Copy d3
 const d3Js = readFileSync("node_modules/d3/dist/d3.min.js", "utf8");
 writeFileSync("dist/d3.min.js", d3Js);
 console.log(`  dist/d3.min.js: ${(d3Js.length / 1024).toFixed(0)} KB`);
 
-// 3. Generate sweep data (or use cached)
+// 4. Sweep data
 let sweepJson: string;
 if (existsSync("sweep_data.json") && !process.argv.includes("--fresh")) {
   console.log("Using cached sweep_data.json (pass --fresh to regenerate)");
   sweepJson = readFileSync("sweep_data.json", "utf8");
 } else {
-  console.log("Generating sweep data (~50 simulations, may take a few minutes)...");
-  const sweepProc = Bun.spawnSync(["bun", "generate_sweep.ts"]);
-  sweepJson = sweepProc.stdout.toString();
+  console.log("Generating sweep data (~50 simulations)...");
+  const proc = Bun.spawnSync(["bun", "generate_sweep.ts"]);
+  sweepJson = proc.stdout.toString();
   writeFileSync("sweep_data.json", sweepJson);
 }
 console.log(`  sweep_data: ${(sweepJson.length / 1024).toFixed(0)} KB`);
 
-// 4. Build index.html from report.html template
-let html = readFileSync("report.html", "utf8");
-
-// Inject sweep data
-if (html.includes("SWEEP_DATA_PLACEHOLDER")) {
-  html = html.replace("SWEEP_DATA_PLACEHOLDER", sweepJson);
-} else {
-  const dataStart = html.indexOf("const DATA = ");
-  if (dataStart > 0) {
-    const dataEnd = html.indexOf(";\nconst B = ", dataStart);
-    if (dataEnd > 0) {
-      html = html.substring(0, dataStart) + "const DATA = " + sweepJson + html.substring(dataEnd);
-    }
-  }
-}
-
-// Point d3 and sim to local files instead of CDN/dist
-html = html.replace(
-  '<script src="https://d3js.org/d3.v7.min.js"></script>',
-  '<script src="d3.min.js"></script>'
-);
-html = html.replace(
-  '<script src="dist/sim.js"></script>',
-  '<script src="sim.js"></script>'
-);
-
+// 5. Build index.html from template
+let html = readFileSync("report-template.html", "utf8");
+html = html.replace("__SWEEP_DATA_PLACEHOLDER__", sweepJson);
 writeFileSync("dist/index.html", html);
-console.log(`\nWrote dist/index.html (${(html.length / 1024).toFixed(0)} KB) + d3.min.js + sim.js`);
+
+console.log(`\ndist/index.html: ${(html.length / 1024).toFixed(0)} KB`);
+console.log(`Total dist: ${["index.html", "app.js", "sim.js", "d3.min.js"].map((f) => `${f} (${(readFileSync(`dist/${f}`).length / 1024).toFixed(0)}KB)`).join(", ")}`);
