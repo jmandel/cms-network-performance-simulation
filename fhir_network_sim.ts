@@ -1730,10 +1730,9 @@ function runModelBp(world: SyntheticWorld): ProtocolResult {
     }
   }
 
-  // Payer Group subscriptions: one per unique payer-source pair, scaled by weight
-  const patientWeight = world.config.population.usPopulation / world.config.population.samplePatients;
-  // payerSourcePairs is from the sample; the actual count at scale is similar (payers cover most sources)
-  const payerGroupSubCount = payerSourcePairs.size;
+  // Payer Group subscriptions: one per payer per active source org.
+  // At national scale with 90% payer coverage, every payer has members at virtually every provider.
+  const payerGroupSubCount = config.payers.totalPayers * config.sources.totalOrganizations;
   result.state.directSourceSubscriptions_payers = payerGroupSubCount;
   result.state.directSourceSubscriptions += payerGroupSubCount;
 
