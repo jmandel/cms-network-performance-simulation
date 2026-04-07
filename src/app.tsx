@@ -45,13 +45,14 @@ function winnerText(models: ModelId[]): string {
 // ── Hero ──
 
 function Hero() {
+  const baselineWorld = useStore((s) => s.baselineWorld);
   return (
     <div className="hero">
       <div className="container">
         <h1>FHIR Subscription Architecture</h1>
         <div className="sub">Comparing four notification architectures at U.S. scale</div>
         <div className="meta">
-          CMS Subscriptions Workgroup · Simulation: 342M population, 12K providers, 15 payers ·{" "}
+          CMS Subscriptions Workgroup · Simulation: {baselineWorld ? fmt(baselineWorld.weightedPopulation) : fmt(DEFAULTS.population.usPopulation)} population, {ff(DEFAULTS.sources.totalOrganizations)} TEFCA-scale orgs, {DEFAULTS.payers.totalPayers} payers ·{" "}
           <a href="#methodology" style={{ color: "#93bbfd" }}>Methodology</a>
         </div>
       </div>
@@ -68,6 +69,7 @@ function Nav() {
     ["#finding2", "Who Does It"],
     ["#finding3", "Payer Impact"],
     ["#tradeoffs", "Tradeoffs"],
+    ["#sensitivity", "Sensitivity"],
     ["#methodology", "Methodology"],
     ["#explorer", "Explorer"],
   ];
@@ -222,11 +224,11 @@ function Finding3() {
         </div>
       </div>
 
-      <Callout variant="bad">
-        <strong>Ghost subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. At 5% failure rate, <strong>{fmt(B.B.ghostSubs)} ghost subs accumulate per year</strong>, generating <strong>{fmt(B.B.payer_ghostNotifs)} wasted notifications/yr</strong> sent to payers who no longer cover the patient.
+      <Callout variant="warn">
+        <strong>Stale subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. If {fmt(B.B.payer_churn)} annual deactivations have even a modest failure rate (simulated at 5%), <strong>{fmt(B.B.ghostSubs)} stale subs accumulate/yr</strong>. Sources can mitigate this with subscription TTLs, periodic reconciliation, or heartbeat-based expiry — but these add operational complexity that Broker and Encrypted avoid entirely, since subscription lifecycle is managed at the network level.
       </Callout>
       <Callout variant="good">
-        <strong>Direct+Group mitigates this:</strong> Payer subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> long-lived Group subs. Member churn becomes Group membership ops, not subscription CRUD. Payer burden approaches Broker while preserving Direct's lower message volume.
+        <strong>Direct+Group reduces exposure:</strong> Payer subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> long-lived Group subs. Member churn becomes Group membership ops instead of subscription CRUD. Stale Group memberships are also easier to reconcile (a payer can periodically sync its full member list per source) than orphaned subscriptions at thousands of sources.
       </Callout>
     </Section>
   );
@@ -244,7 +246,7 @@ function TradeoffTable() {
     ["Network relay msgs/yr", { A: fmt(B.A.net_relay), B: fmt(B.B.net_relay), Bp: fmt(B.Bp.net_relay), C: fmt(B.C.net_relay) }, "B,Bp"],
     ["Payer active subs", { A: fmt(B.A.payer_totalSubs), B: fmt(B.B.payer_totalSubs), Bp: fmt(B.Bp.payer_totalSubs), C: fmt(B.C.payer_totalSubs) }, "A,Bp,C"],
     ["Payer churn ops/yr", { A: fmt(B.A.payer_churn), B: fmt(B.B.payer_churn), Bp: fmt(B.Bp.payer_churn), C: fmt(B.C.payer_churn) }, "A,Bp,C"],
-    ["Ghost subs accumulated/yr", { A: "None", B: fmt(B.B.ghostSubs), Bp: fmt(B.Bp.ghostSubs), C: "None" }, "A,C"],
+    ["Stale subs accumulated/yr", { A: "None", B: fmt(B.B.ghostSubs), Bp: fmt(B.Bp.ghostSubs), C: "None" }, "A,C"],
     ["App subs per enrolled patient", { A: B.A.app_subsPerPt.toFixed(1), B: B.B.app_subsPerPt.toFixed(1), Bp: B.Bp.app_subsPerPt.toFixed(1), C: B.C.app_subsPerPt.toFixed(1) }, "A,C"],
     ["Privacy (network cannot read)", { A: "No", B: "N/A", Bp: "N/A", C: "Yes" }, "C"],
   ];
@@ -276,8 +278,55 @@ function TradeoffTable() {
       </table>
       <details>
         <summary>Scenario sensitivity</summary>
-        <p>These conclusions are stable across scenarios (mature adoption, high fragmentation, cross-network mix, high payer churn). The relative ordering does not change. See the <a href="#explorer">Explorer</a> to test specific parameter combinations.</p>
+        <p>This report now summarizes multi-seed scenario bundles rather than one-factor sweeps. See <a href="#sensitivity">Sensitivity</a> for p10/p50/p90 ranges and winner stability, or use the <a href="#explorer">Explorer</a> for custom combinations.</p>
       </details>
+    </Section>
+  );
+}
+
+function Sensitivity() {
+  const sweepData = useStore((s) => s.sweepData);
+  if (!sweepData?.scenarioBundles?.length) return null;
+
+  const bundles = sweepData.scenarioBundles;
+  const totalWins = bundles.filter((b) => b.winners.totalMessages.includes("B") && b.winners.totalMessages.includes("Bp")).length;
+  const sourceWins = bundles.filter((b) => b.winners.srcP95Subs.includes("A")).length;
+  const payerChurnWins = bundles.filter((b) => b.winners.payerChurn.includes("A") && b.winners.payerChurn.includes("Bp") && b.winners.payerChurn.includes("C")).length;
+
+  return (
+    <Section id="sensitivity">
+      <h2>Scenario Bundles</h2>
+      <p>Each bundle is run across <strong>{sweepData.meta.seeds.length}</strong> seeds at <strong>{ff(sweepData.meta.samplePatients)}</strong> sampled patients. Values below show medians with p10-p90 ranges, which are more decision-useful than a single world draw.</p>
+      <Callout variant="info">
+        <strong>Stability:</strong> Direct and Direct+Group have the lowest total-message count in <strong>{totalWins}/{bundles.length}</strong> bundles. Broker has the lowest p95 source subscription burden in <strong>{sourceWins}/{bundles.length}</strong>. Broker, Direct+Group, and Encrypted tie for lowest payer churn in <strong>{payerChurnWins}/{bundles.length}</strong>.
+      </Callout>
+      <table>
+        <thead>
+          <tr>
+            <th>Bundle</th>
+            <th>Total msg winner</th>
+            <th>Direct total msgs</th>
+            <th>Direct p95 subs/source</th>
+            <th>Direct payer subs</th>
+            <th>Direct+Group payer subs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bundles.map((bundle: ScenarioBundle) => (
+            <tr key={bundle.id}>
+              <td>
+                <strong>{bundle.label}</strong>
+                <div style={{ fontSize: ".78rem", color: "var(--muted)", marginTop: 4 }}>{bundle.description}</div>
+              </td>
+              <td>{winnerText(bundle.winners.totalMessages)}</td>
+              <td style={{ color: MODEL_COLORS.B }}>{fmtRange(bundle.protocolBands.B.totalMessages)}</td>
+              <td style={{ color: MODEL_COLORS.B }}>{fmtRange(bundle.protocolBands.B.src_p95Subs)}</td>
+              <td style={{ color: MODEL_COLORS.B }}>{fmtRange(bundle.protocolBands.B.directSourceSubs_payers)}</td>
+              <td style={{ color: MODEL_COLORS.Bp }}>{fmtRange(bundle.protocolBands.Bp.directSourceSubs_payers)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Section>
   );
 }
@@ -285,6 +334,8 @@ function TradeoffTable() {
 // ── Methodology ──
 
 function Methodology() {
+  const baselineWorld = useStore((s) => s.baselineWorld);
+  const sweepData = useStore((s) => s.sweepData);
   return (
     <Section id="methodology">
       <h2>Methodology</h2>
@@ -294,13 +345,13 @@ function Methodology() {
           <h3>Synthetic ecosystem</h3>
           <table>
             <tbody>
-              <tr><td>Population</td><td>342M (120K sampled, scaled)</td></tr>
-              <tr><td>Networks</td><td>11 (Zipf-distributed sizes)</td></tr>
-              <tr><td>Providers</td><td>12,000 orgs (heavy-tailed)</td></tr>
-              <tr><td>Patient apps</td><td>20% enrollment, 80 vendors</td></tr>
-              <tr><td>Payers</td><td>90% enrollment, 15 payers, 2.5%/mo churn</td></tr>
-              <tr><td>Relationships</td><td>Mean 2.19/patient (p95: 6)</td></tr>
-              <tr><td>Episodes</td><td>Mean 3.49/patient/year</td></tr>
+              <tr><td>Population</td><td>{baselineWorld ? `${fmt(baselineWorld.weightedPopulation)} simulated population` : fmt(DEFAULTS.population.usPopulation)}</td></tr>
+              <tr><td>Networks</td><td>{DEFAULTS.networks.count} (QHIN-scale, Zipf-distributed sizes)</td></tr>
+              <tr><td>Organizations</td><td>{ff(DEFAULTS.sources.totalOrganizations)} TEFCA-scale orgs</td></tr>
+              <tr><td>Patient apps</td><td>{(DEFAULTS.population.appEnrollmentRate * 100).toFixed(0)}% enrollment, {DEFAULTS.apps.totalVendors} vendors</td></tr>
+              <tr><td>Payers</td><td>{(DEFAULTS.payers.enrollmentRate * 100).toFixed(0)}% enrollment, {DEFAULTS.payers.totalPayers} payers, {(DEFAULTS.payers.monthlyMemberChurnRate * 100).toFixed(1)}%/mo churn</td></tr>
+              <tr><td>Relationships</td><td>{baselineWorld ? `Mean ${baselineWorld.meanRelationshipsPerPatient.toFixed(2)}/patient (p95: ${baselineWorld.p95Relationships.toFixed(0)})` : "Synthetic heavy-tailed relationships"}</td></tr>
+              <tr><td>Episodes</td><td>{baselineWorld ? `Mean ${baselineWorld.meanEpisodesPerPatient.toFixed(2)}/patient/year` : "Synthetic annual utilization"}</td></tr>
             </tbody>
           </table>
         </div>
@@ -308,15 +359,16 @@ function Methodology() {
           <h3>Key assumptions</h3>
           <table>
             <tbody>
-              <tr><td>Notification copies</td><td>Outpatient: 2.1, ED: 1, Inpatient: 2</td></tr>
+              <tr><td>Notification copies</td><td>Outpatient: {DEFAULTS.events.outpatientScheduledMultiplier + DEFAULTS.events.outpatientCompletedNotifications}, ED: {DEFAULTS.events.edNotifications}, Inpatient: {DEFAULTS.events.inpatientAdmissionNotifications + DEFAULTS.events.inpatientDischargeNotifications}</td></tr>
               <tr><td>Peer multiplexing</td><td>1 event per patient, not per client</td></tr>
-              <tr><td>Deactivation failure</td><td>5% (Direct models)</td></tr>
+              <tr><td>Deactivation failure</td><td>{(DEFAULTS.modelB.deactivationFailureRate * 100).toFixed(0)}% (Direct models)</td></tr>
               <tr><td>Group subs</td><td>1 per payer-source pair</td></tr>
-              <tr><td>Payload</td><td>1,400 bytes/notification</td></tr>
+              <tr><td>Payload</td><td>{ff(DEFAULTS.events.payloadBytes.clinicalNotification)} bytes/notification</td></tr>
+              <tr><td>Scenario bundles</td><td>{sweepData ? `${sweepData.meta.bundleCount} bundles × ${sweepData.meta.seeds.length} seeds` : "Multi-seed bundles"}</td></tr>
             </tbody>
           </table>
           <h3>Not modeled</h3>
-          <p style={{ fontSize: ".82rem" }}>Implementation complexity, latency, fault tolerance, cost per message, Group query overhead at sources.</p>
+          <p style={{ fontSize: ".82rem" }}>Implementation complexity, latency, fault tolerance, cost per message, and detailed Group query overhead at sources. The scenario bundles improve robustness, but this remains a decision-support simulator rather than a forecast model.</p>
         </div>
       </div>
     </Section>
@@ -395,7 +447,7 @@ function Explorer() {
             0.02, 0.5, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
           {sl("deactivationFailure", "Deactivation failure",
             "Probability a subscription delete fails (Direct models)",
-            "When a subscription should be removed at a source but the delete operation fails (network issues, source downtime, bugs), the source retains a 'ghost' subscription and continues sending notifications to a defunct endpoint. Only affects Direct and Direct+Group. Higher rates create more wasted traffic and potential PHI exposure.",
+            "When a subscription should be removed at a source but the delete fails (network issues, source downtime, bugs), the source retains a stale subscription and continues sending notifications. Only affects Direct and Direct+Group. In practice, TTLs, periodic reconciliation, or heartbeat-based expiry can clean these up — this slider models the residual rate after such mitigations.",
             0, 0.3, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
           {sl("relationshipMult", "Relationship multiplier",
             "Scales the average number of provider relationships per patient",
@@ -428,14 +480,14 @@ function ExplorerResults({ data }: { data: Record<ModelId, ExtractedProtocol> })
     ["  — Apps", (m) => data[m].directSourceSubs_apps],
     ["  — Payers", (m) => data[m].directSourceSubs_payers],
     ["  — Providers", (m) => data[m].directSourceSubs_providers],
-    ["Ghost subs (accumulated/yr)", (m) => data[m].ghostSubs],
+    ["Stale subs (accumulated/yr)", (m) => data[m].ghostSubs],
     ["---2", null],
     ["P95 subs/source (active)", (m) => data[m].src_p95Subs],
     ["P95 msgs/source/day", (m) => data[m].src_p95MsgsDay],
     ["---3", null],
     ["Payer subs (active)", (m) => data[m].payer_totalSubs],
     ["Payer churn ops/yr", (m) => data[m].payer_churn],
-    ["Payer ghost subs/yr", (m) => data[m].payer_ghost],
+    ["Payer stale subs/yr", (m) => data[m].payer_ghost],
   ];
   return (
     <table style={{ fontSize: ".8rem" }}>
