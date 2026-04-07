@@ -1,11 +1,14 @@
 import { createRoot } from "react-dom/client";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useStore } from "./store";
 import { MODEL_IDS, MODEL_LABELS, MODEL_COLORS, ENTITY_COLORS, fmt, ff } from "./constants";
 import type { ModelId } from "./constants";
-import type { ExtractedProtocol } from "./extract";
+import type { ExtractedProtocol, NumericBand, ScenarioBundle } from "./extract";
 import { HBar } from "./components/charts/HBar";
 import { Donut } from "./components/charts/Donut";
+import { createDefaultConfig } from "../fhir_network_sim";
+
+const DEFAULTS = createDefaultConfig();
 
 // ── Shared tiny components ──
 
@@ -28,6 +31,15 @@ function MetricCard({ value, label, color, formatter = fmt }: { value: number; l
       <div className="lbl">{label}</div>
     </div>
   );
+}
+
+function fmtRange(band: NumericBand | undefined, formatter: (n: number) => string = fmt): string {
+  if (!band) return "n/a";
+  return `${formatter(band.p50)} [${formatter(band.p10)}-${formatter(band.p90)}]`;
+}
+
+function winnerText(models: ModelId[]): string {
+  return models.map((m) => MODEL_LABELS[m]).join(" / ");
 }
 
 // ── Hero ──
@@ -149,8 +161,8 @@ function Finding2() {
         </p>
         <HBar
           metrics={[
-            { label: "Source outbound msgs", key: "src_outbound" },
-            { label: "Network relay msgs", key: "net_relay" },
+            { label: "Source outbound msgs/yr", key: "src_outbound" },
+            { label: "Network relay msgs/yr", key: "net_relay" },
           ]}
           data={B}
         />
@@ -185,7 +197,7 @@ function Finding3() {
 
       <div className="g2">
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Direct: who are those 1.5B source subs?</h3>
+          <h3 style={{ marginTop: 0 }}>Direct: who are those {fmt(B.B.directSourceSubs)} source subs?</h3>
           <Donut
             segments={[
               { label: "Apps", value: B.B.directSourceSubs_apps, color: ENTITY_COLORS.apps },
@@ -211,7 +223,7 @@ function Finding3() {
       </div>
 
       <Callout variant="bad">
-        <strong>Ghost subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. At 5% failure rate, <strong>{fmt(B.B.ghostSubs)}</strong> ghost subs accumulate — notifications sent to payers who no longer cover the patient.
+        <strong>Ghost subscription risk (Direct):</strong> When a member changes plans, subscriptions must be deactivated at every source. At 5% failure rate, <strong>{fmt(B.B.ghostSubs)} ghost subs accumulate per year</strong>, generating <strong>{fmt(B.B.payer_ghostNotifs)} wasted notifications/yr</strong> sent to payers who no longer cover the patient.
       </Callout>
       <Callout variant="good">
         <strong>Direct+Group mitigates this:</strong> Payer subs collapse from <strong>{fmt(B.B.directSourceSubs_payers)}</strong> per-patient subscriptions to <strong>{fmt(B.Bp.directSourceSubs_payers)}</strong> long-lived Group subs. Member churn becomes Group membership ops, not subscription CRUD. Payer burden approaches Broker while preserving Direct's lower message volume.
@@ -226,13 +238,13 @@ function TradeoffTable() {
   const B = useStore((s) => s.baseline);
   if (!B) return null;
   const dims: [string, Record<ModelId, string>, string][] = [
-    ["Source subscription burden", { A: fmt(B.A.directSourceSubs), B: fmt(B.B.directSourceSubs), Bp: fmt(B.Bp.directSourceSubs), C: fmt(B.C.directSourceSubs) }, "A,C"],
+    ["Active source subs", { A: fmt(B.A.directSourceSubs), B: fmt(B.B.directSourceSubs), Bp: fmt(B.Bp.directSourceSubs), C: fmt(B.C.directSourceSubs) }, "A,C"],
     ["Source outbound msgs/day (p95)", { A: ff(B.A.src_p95MsgsDay), B: ff(B.B.src_p95MsgsDay), Bp: ff(B.Bp.src_p95MsgsDay), C: ff(B.C.src_p95MsgsDay) }, "A"],
-    ["Total annual messages", { A: fmt(B.A.totalMessages), B: fmt(B.B.totalMessages), Bp: fmt(B.Bp.totalMessages), C: fmt(B.C.totalMessages) }, "B,Bp"],
-    ["Network relay messages", { A: fmt(B.A.net_relay), B: fmt(B.B.net_relay), Bp: fmt(B.Bp.net_relay), C: fmt(B.C.net_relay) }, "B,Bp"],
-    ["Payer total subscriptions", { A: fmt(B.A.payer_totalSubs), B: fmt(B.B.payer_totalSubs), Bp: fmt(B.Bp.payer_totalSubs), C: fmt(B.C.payer_totalSubs) }, "A,Bp,C"],
-    ["Payer annual churn ops", { A: fmt(B.A.payer_churn), B: fmt(B.B.payer_churn), Bp: fmt(B.Bp.payer_churn), C: fmt(B.C.payer_churn) }, "A,Bp,C"],
-    ["Ghost subscription risk", { A: "None", B: fmt(B.B.ghostSubs), Bp: fmt(B.Bp.ghostSubs), C: "None" }, "A,C"],
+    ["Total messages/yr", { A: fmt(B.A.totalMessages), B: fmt(B.B.totalMessages), Bp: fmt(B.Bp.totalMessages), C: fmt(B.C.totalMessages) }, "B,Bp"],
+    ["Network relay msgs/yr", { A: fmt(B.A.net_relay), B: fmt(B.B.net_relay), Bp: fmt(B.Bp.net_relay), C: fmt(B.C.net_relay) }, "B,Bp"],
+    ["Payer active subs", { A: fmt(B.A.payer_totalSubs), B: fmt(B.B.payer_totalSubs), Bp: fmt(B.Bp.payer_totalSubs), C: fmt(B.C.payer_totalSubs) }, "A,Bp,C"],
+    ["Payer churn ops/yr", { A: fmt(B.A.payer_churn), B: fmt(B.B.payer_churn), Bp: fmt(B.Bp.payer_churn), C: fmt(B.C.payer_churn) }, "A,Bp,C"],
+    ["Ghost subs accumulated/yr", { A: "None", B: fmt(B.B.ghostSubs), Bp: fmt(B.Bp.ghostSubs), C: "None" }, "A,C"],
     ["App subs per enrolled patient", { A: B.A.app_subsPerPt.toFixed(1), B: B.B.app_subsPerPt.toFixed(1), Bp: B.Bp.app_subsPerPt.toFixed(1), C: B.C.app_subsPerPt.toFixed(1) }, "A,C"],
     ["Privacy (network cannot read)", { A: "No", B: "N/A", Bp: "N/A", C: "Yes" }, "C"],
   ];
@@ -320,9 +332,41 @@ function Explorer() {
     useStore.getState().init();
   }, []);
 
-  const sl = (key: keyof typeof sliders, label: string, min: number, max: number, step: number, display: (v: number) => string) => (
+  const [expandedHelp, setExpandedHelp] = React.useState<string | null>(null);
+
+  const sl = (
+    key: keyof typeof sliders,
+    label: string,
+    desc: string,
+    help: string,
+    min: number, max: number, step: number,
+    display: (v: number) => string,
+  ) => (
     <div className="slider-group">
-      <label>{label} <span>{display(sliders[key])}</span></label>
+      <label>
+        {label}
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {display(sliders[key])}
+          <button
+            onClick={() => setExpandedHelp(expandedHelp === key ? null : key)}
+            style={{
+              background: expandedHelp === key ? "#2563eb" : "#e5e7eb",
+              color: expandedHelp === key ? "#fff" : "#6b7280",
+              border: "none", borderRadius: "50%", width: 18, height: 18,
+              fontSize: 11, fontWeight: 700, cursor: "pointer", lineHeight: 1,
+              flexShrink: 0,
+            }}
+            title={desc}
+          >?</button>
+        </span>
+      </label>
+      <div style={{ fontSize: ".75rem", color: "var(--muted)", marginBottom: 4 }}>{desc}</div>
+      {expandedHelp === key && (
+        <div style={{
+          fontSize: ".75rem", color: "var(--text)", background: "#f0f4ff",
+          padding: "8px 10px", borderRadius: 6, marginBottom: 6, lineHeight: 1.5,
+        }}>{help}</div>
+      )}
       <input type="range" min={min} max={max} step={step} value={sliders[key]} onChange={(e) => setSlider(key, parseFloat(e.target.value))} />
     </div>
   );
@@ -333,13 +377,34 @@ function Explorer() {
       <p>Run the full simulation in your browser. Adjust parameters and compare all four architectures.</p>
       <div className="explorer-grid">
         <div className="explorer-controls card">
-          {sl("appEnrollmentRate", "App enrollment", 0.02, 0.7, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
-          {sl("payerEnrollmentRate", "Payer enrollment", 0.1, 0.99, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
-          {sl("payerMonthlyChurn", "Payer monthly churn", 0.005, 0.15, 0.005, (v) => `${(v * 100).toFixed(1)}%`)}
-          {sl("appAnnualChurn", "App annual churn", 0.02, 0.5, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
-          {sl("deactivationFailure", "Deactivation failure", 0, 0.3, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
-          {sl("relationshipMult", "Relationship mult", 0.5, 2.5, 0.1, (v) => `${v.toFixed(1)}x`)}
-          {sl("samplePatients", "Sample patients", 5000, 120000, 5000, (v) => Math.round(v).toLocaleString())}
+          {sl("appEnrollmentRate", "App enrollment",
+            "Fraction of patients using a health app",
+            "What share of patients have at least one FHIR-connected health app (e.g., Apple Health, patient portal app). Higher enrollment means more app subscriptions at sources in Direct models. Current real-world estimate is ~7% based on ONC 2024 data; slider lets you test future adoption scenarios.",
+            0.02, 0.7, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
+          {sl("payerEnrollmentRate", "Payer enrollment",
+            "Fraction of patients with payer subscription coverage",
+            "What share of patients have at least one payer (insurer) that subscribes for notifications. Includes commercial, Medicare, and Medicaid. ~92% of the U.S. population has some form of health coverage. Payers are the largest driver of subscription volume in Direct models.",
+            0.1, 0.99, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
+          {sl("payerMonthlyChurn", "Payer monthly churn",
+            "Monthly rate at which members change payers",
+            "Each month, this fraction of payer-patient relationships end (job changes, open enrollment, Medicaid redetermination) and new ones begin. In Direct models, each change requires subscription operations at every source the patient visits. Higher churn amplifies control-plane load and ghost subscription risk.",
+            0.005, 0.15, 0.005, (v) => `${(v * 100).toFixed(1)}%`)}
+          {sl("appAnnualChurn", "App annual churn",
+            "Annual rate at which patients switch or drop apps",
+            "The fraction of app-patient relationships that turn over per year. When a patient uninstalls an app, subscriptions at the Broker (all models) and at each source (Direct models) must be deactivated. Lower impact than payer churn because fewer patients have apps.",
+            0.02, 0.5, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
+          {sl("deactivationFailure", "Deactivation failure",
+            "Probability a subscription delete fails (Direct models)",
+            "When a subscription should be removed at a source but the delete operation fails (network issues, source downtime, bugs), the source retains a 'ghost' subscription and continues sending notifications to a defunct endpoint. Only affects Direct and Direct+Group. Higher rates create more wasted traffic and potential PHI exposure.",
+            0, 0.3, 0.01, (v) => `${(v * 100).toFixed(0)}%`)}
+          {sl("relationshipMult", "Relationship multiplier",
+            "Scales the average number of provider relationships per patient",
+            "Multiplies the baseline number of care relationships (default: mean ~2.2 per patient). At 1.5x, patients average ~3.3 providers. More relationships means more source subscriptions in Direct models. Simulates care fragmentation — higher values model populations that see more distinct providers.",
+            0.5, 2.5, 0.1, (v) => `${v.toFixed(1)}x`)}
+          {sl("samplePatients", "Sample patients",
+            "Number of patients simulated (scaled to 342M)",
+            "The simulator generates this many individual patients, then multiplies all counts by a weight to project to the full U.S. population. Higher values give more stable results but take longer to run. 20K is fast (~1s); 120K matches the pre-computed baseline.",
+            5000, 120000, 5000, (v) => Math.round(v).toLocaleString())}
           <button className="run-btn" disabled={isSimRunning} onClick={runSimulation}>Run Simulation</button>
           <div className="sim-status">{simStatus}</div>
         </div>
@@ -355,22 +420,22 @@ function Explorer() {
 
 function ExplorerResults({ data }: { data: Record<ModelId, ExtractedProtocol> }) {
   const rows: [string | null, ((m: ModelId) => number) | null][] = [
-    ["Total messages", (m) => data[m].totalMessages],
-    ["Data plane", (m) => data[m].dataPlaneMessages],
-    ["Control plane", (m) => data[m].controlPlaneMessages],
+    ["Total messages/yr", (m) => data[m].totalMessages],
+    ["Data plane msgs/yr", (m) => data[m].dataPlaneMessages],
+    ["Control plane msgs/yr", (m) => data[m].controlPlaneMessages],
     ["---1", null],
-    ["Direct source subs", (m) => data[m].directSourceSubs],
+    ["Direct source subs (active)", (m) => data[m].directSourceSubs],
     ["  — Apps", (m) => data[m].directSourceSubs_apps],
     ["  — Payers", (m) => data[m].directSourceSubs_payers],
     ["  — Providers", (m) => data[m].directSourceSubs_providers],
-    ["Ghost subs", (m) => data[m].ghostSubs],
+    ["Ghost subs (accumulated/yr)", (m) => data[m].ghostSubs],
     ["---2", null],
-    ["P95 subs/source", (m) => data[m].src_p95Subs],
+    ["P95 subs/source (active)", (m) => data[m].src_p95Subs],
     ["P95 msgs/source/day", (m) => data[m].src_p95MsgsDay],
     ["---3", null],
-    ["Payer total subs", (m) => data[m].payer_totalSubs],
-    ["Payer annual churn", (m) => data[m].payer_churn],
-    ["Payer ghost subs", (m) => data[m].payer_ghost],
+    ["Payer subs (active)", (m) => data[m].payer_totalSubs],
+    ["Payer churn ops/yr", (m) => data[m].payer_churn],
+    ["Payer ghost subs/yr", (m) => data[m].payer_ghost],
   ];
   return (
     <table style={{ fontSize: ".8rem" }}>
