@@ -226,7 +226,7 @@ function ff(n){return Math.round(n).toLocaleString()}
  metrics.forEach(met=>{M.forEach(m=>{const v=B[m][met.k];if(!v)return;
    g.append('rect').attr('y',y0(met.l)+y1(m)).attr('x',0).attr('height',y1.bandwidth()).attr('width',x(v)).attr('fill',MC[m]).attr('rx',2)
      .on('mouseover',e=>showTip(e,`<b>${ML[m]}</b><br>${met.l}: ${ff(v)}`)).on('mousemove',e=>showTip(e,`<b>${ML[m]}</b><br>${met.l}: ${ff(v)}`)).on('mouseout',hideTip);
-   g.append('text').attr('y',y0(met.l)+y1(m)+y1.bandwidth()/2+4).attr('x',x(v)+4).attr('font-size','10px').attr('fill',MC[m]).text(ff(v))})})}
+   g.append('text').attr('y',y0(met.l)+y1(m)+y1.bandwidth()/2+4).attr('x',x(v)+4).attr('font-size','10px').attr('fill',MC[m]).attr('font-weight','600').text(ML[m]+': '+ff(v))})})}
 
 // ── Payer metrics ──
 {const el=document.getElementById('payer-metrics');
@@ -278,7 +278,7 @@ donut('#chart-breakdown-bp',
  metrics.forEach(met=>{M.forEach(m=>{const v=B[m][met.k];if(!v)return;
    g.append('rect').attr('y',y0(met.l)+y1(m)).attr('x',0).attr('height',y1.bandwidth()).attr('width',x(v)).attr('fill',MC[m]).attr('rx',2)
      .on('mouseover',e=>showTip(e,`<b>${ML[m]}</b><br>${met.l}: ${ff(v)}`)).on('mousemove',e=>showTip(e,`<b>${ML[m]}</b><br>${met.l}: ${ff(v)}`)).on('mouseout',hideTip);
-   g.append('text').attr('y',y0(met.l)+y1(m)+y1.bandwidth()/2+4).attr('x',x(v)+4).attr('font-size','10px').attr('fill',MC[m]).text(fmt(v))})})}
+   g.append('text').attr('y',y0(met.l)+y1(m)+y1.bandwidth()/2+4).attr('x',x(v)+4).attr('font-size','10px').attr('fill',MC[m]).attr('font-weight','600').text(ML[m]+': '+fmt(v))})})}
 
 // Fill callout values
 document.getElementById('broker-total').textContent=fmt(B.A.totalMessages);
