@@ -8,8 +8,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync } from "fs";
 
 mkdirSync("dist", { recursive: true });
 
-// 1. Bundle React app
-console.log("Bundling app...");
+// 1. Bundle React app (includes sim directly)
+console.log("Bundling app (React + sim)...");
 const appBuild = await Bun.build({
   entrypoints: ["./src/app.tsx"],
   target: "browser",
@@ -26,17 +26,6 @@ if (!appBuild.success) {
 const appJs = await appBuild.outputs[0].text();
 writeFileSync("dist/app.js", appJs);
 console.log(`  dist/app.js: ${(appJs.length / 1024).toFixed(0)} KB`);
-
-// 2. Bundle sim for browser
-console.log("Bundling sim...");
-const simBuild = await Bun.build({
-  entrypoints: ["./sim_browser.ts"],
-  target: "browser",
-  minify: true,
-});
-const simJs = await simBuild.outputs[0].text();
-writeFileSync("dist/sim.js", simJs);
-console.log(`  dist/sim.js: ${(simJs.length / 1024).toFixed(0)} KB`);
 
 // 3. Copy d3
 const d3Js = readFileSync("node_modules/d3/dist/d3.min.js", "utf8");
@@ -62,4 +51,4 @@ html = html.replace("__SWEEP_DATA_PLACEHOLDER__", sweepJson);
 writeFileSync("dist/index.html", html);
 
 console.log(`\ndist/index.html: ${(html.length / 1024).toFixed(0)} KB`);
-console.log(`Total dist: ${["index.html", "app.js", "sim.js", "d3.min.js"].map((f) => `${f} (${(readFileSync(`dist/${f}`).length / 1024).toFixed(0)}KB)`).join(", ")}`);
+console.log(`Total dist: ${["index.html", "app.js", "d3.min.js"].map((f) => `${f} (${(readFileSync(`dist/${f}`).length / 1024).toFixed(0)}KB)`).join(", ")}`);

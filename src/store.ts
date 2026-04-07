@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { ModelId } from "./constants";
 import type { ExtractedProtocol, SweepData } from "./extract";
 import { extractFromAllResults } from "./extract";
+import { createDefaultConfig, buildWorld, runAll } from "../fhir_network_sim";
+import type { SimulationConfig } from "../fhir_network_sim";
 
 interface Sliders {
   appEnrollmentRate: number;
@@ -63,37 +65,25 @@ export const useStore = create<ReportStore>((set, get) => ({
         baselineWorld: data.scenarios.baseline.world,
       });
     }
-    // Auto-run explorer once sim.js is loaded
-    function waitForSim() {
-      if ((window as any).Sim) {
-        get().runSimulation();
-      } else {
-        setTimeout(waitForSim, 200);
-      }
-    }
-    waitForSim();
+    // Auto-run explorer with defaults
+    setTimeout(() => get().runSimulation(), 0);
   },
 
   setSlider: (key, value) =>
     set((s) => ({ sliders: { ...s.sliders, [key]: value } })),
 
   runSimulation: () => {
-    const Sim = (window as any).Sim;
-    if (!Sim) {
-      set({ simStatus: "Waiting for simulator to load..." });
-      return;
-    }
     set({ isSimRunning: true, simStatus: "Running..." });
     setTimeout(() => {
       try {
         const { sliders } = get();
-        const base = Sim.createDefaultConfig();
-        const cohorts = base.population.cohorts.map((c: any) => ({
+        const base = createDefaultConfig();
+        const cohorts = base.population.cohorts.map((c) => ({
           ...c,
           meanBaselineRelationships:
             c.meanBaselineRelationships * sliders.relationshipMult,
         }));
-        const results = Sim.runSimulation({
+        const cfg = deepMerge(base, {
           population: {
             samplePatients: Math.round(sliders.samplePatients),
             appEnrollmentRate: sliders.appEnrollmentRate,
@@ -108,6 +98,8 @@ export const useStore = create<ReportStore>((set, get) => ({
             deactivationFailureRate: sliders.deactivationFailure,
           },
         });
+        const world = buildWorld(cfg);
+        const results = runAll(world);
         set({
           explorerResults: extractFromAllResults(results),
           explorerWorld: results.world,
@@ -123,3 +115,15 @@ export const useStore = create<ReportStore>((set, get) => ({
   showTooltip: (html, x, y) => set({ tooltip: { html, x, y } }),
   hideTooltip: () => set({ tooltip: null }),
 }));
+
+function deepMerge(target: any, source: any): any {
+  const out = { ...target };
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+      out[key] = deepMerge(target[key] || {}, source[key]);
+    } else {
+      out[key] = source[key];
+    }
+  }
+  return out;
+}

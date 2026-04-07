@@ -354,20 +354,20 @@ function Explorer() {
 }
 
 function ExplorerResults({ data }: { data: Record<ModelId, ExtractedProtocol> }) {
-  const rows: [string, ((m: ModelId) => number) | null][] = [
+  const rows: [string | null, ((m: ModelId) => number) | null][] = [
     ["Total messages", (m) => data[m].totalMessages],
     ["Data plane", (m) => data[m].dataPlaneMessages],
     ["Control plane", (m) => data[m].controlPlaneMessages],
-    [null, null],
+    ["---1", null],
     ["Direct source subs", (m) => data[m].directSourceSubs],
     ["  — Apps", (m) => data[m].directSourceSubs_apps],
     ["  — Payers", (m) => data[m].directSourceSubs_payers],
     ["  — Providers", (m) => data[m].directSourceSubs_providers],
     ["Ghost subs", (m) => data[m].ghostSubs],
-    [null, null],
+    ["---2", null],
     ["P95 subs/source", (m) => data[m].src_p95Subs],
     ["P95 msgs/source/day", (m) => data[m].src_p95MsgsDay],
-    [null, null],
+    ["---3", null],
     ["Payer total subs", (m) => data[m].payer_totalSubs],
     ["Payer annual churn", (m) => data[m].payer_churn],
     ["Payer ghost subs", (m) => data[m].payer_ghost],
@@ -384,9 +384,9 @@ function ExplorerResults({ data }: { data: Record<ModelId, ExtractedProtocol> })
       </thead>
       <tbody>
         {rows.map(([label, fn], i) => {
-          if (!fn) return <tr key={i}><td colSpan={5} style={{ border: "none", height: 4 }} /></tr>;
+          if (!fn) return <tr key={`sep-${i}`}><td colSpan={5} style={{ border: "none", height: 4 }} /></tr>;
           return (
-            <tr key={label}>
+            <tr key={`row-${label}`}>
               <td>{label}</td>
               {MODEL_IDS.map((m) => (
                 <td key={m} style={{ color: MODEL_COLORS[m] }}>{ff(fn(m))}</td>
